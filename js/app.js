@@ -7,6 +7,46 @@ const $ = (id) => document.getElementById(id);
 
 const state = { stats: null, history: null };
 
+/**
+ * Which statistic categories are open.
+ *
+ * This has to be remembered outside the DOM. The page redraws itself every 60
+ * seconds, and a rebuilt <details> defaults to closed — so without this, any
+ * category the reader opened would snap shut under them roughly once a minute.
+ * Kept in localStorage too, so it survives a reload; wrapped because a private
+ * window can throw on access rather than simply returning nothing.
+ */
+// Stored as a map of key -> open, NOT a list of open keys. The difference
+// matters: a list cannot tell "the reader closed this" apart from "this
+// category did not exist yet", so a category added later would never get its
+// own default. Absent from the map means never seen, and only then does the
+// category's own `open` apply.
+const OPEN_KEY = 'prb-open-categories';
+let openCats = null;
+
+function loadOpen() {
+  if (openCats) return openCats;
+  openCats = new Map();
+  try {
+    const raw = localStorage.getItem(OPEN_KEY);
+    if (raw) for (const [k, v] of Object.entries(JSON.parse(raw))) openCats.set(k, !!v);
+  } catch { /* private window, blocked storage — the defaults still apply */ }
+  return openCats;
+}
+
+/** Whether this category should be drawn open, applying its default once. */
+function startsOpen(cat) {
+  const map = loadOpen();
+  if (!map.has(cat.key)) map.set(cat.key, !!cat.open);
+  return map.get(cat.key);
+}
+
+function rememberOpen() {
+  try {
+    localStorage.setItem(OPEN_KEY, JSON.stringify(Object.fromEntries(openCats)));
+  } catch { /* nothing to do, and nothing worth telling the reader */ }
+}
+
 boot();
 
 async function boot() {
@@ -168,15 +208,67 @@ function drawStats() {
   $('season-line').querySelector('.dot').classList.toggle('stale', !!d.stale);
 
   drawTeams(d.teams);
-  drawRows($('offence'), d.comparison.offence, d.teams);
-  drawRows($('defence'), d.comparison.defence, d.teams);
+  drawCategories(d.comparison.categories, d.teams);
   drawQbs(d.teams);
-  drawRows($('qb-rows'), d.comparison.qb, d.teams);
+  drawCategory($('qb-cat'), {
+    key: 'qb', title: 'Quarterback comparison', note: null, open: true,
+    rows: d.comparison.qb,
+  }, d.teams);
   drawTicker();
 
-  for (const id of ['teams-section', 'offence-section', 'defence-section', 'qb-section']) $(id).hidden = false;
+  for (const id of ['teams-section', 'cats-section', 'qb-section']) $(id).hidden = false;
 
   $('foot-meta').textContent = `Season ${d.season.year}. Read ${new Date(d.generated).toLocaleString()}${d.stale ? ' — serving the last good copy; the live read failed.' : ''}`;
+}
+
+function drawCategories(categories, teams) {
+  const wrap = $('categories');
+  wrap.textContent = '';
+  for (const cat of categories) wrap.appendChild(buildCategory(cat, teams));
+}
+
+function drawCategory(wrap, cat, teams) {
+  wrap.textContent = '';
+  wrap.appendChild(buildCategory(cat, teams));
+}
+
+/**
+ * One collapsible category. A real <details>, so it opens with a click or the
+ * keyboard and still works with JavaScript disabled after the first paint —
+ * no hand-rolled toggle to get wrong.
+ */
+function buildCategory(cat, teams) {
+  const det = document.createElement('details');
+  det.className = 'cat';
+  det.open = startsOpen(cat);
+  det.addEventListener('toggle', () => {
+    openCats.set(cat.key, det.open);
+    rememberOpen();
+  });
+
+  const sum = document.createElement('summary');
+  sum.innerHTML = `
+    <svg class="cat-arrow" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="cat-title">${esc(cat.title)}</span>
+    <span class="cat-count">${cat.rows.length} stat${cat.rows.length === 1 ? '' : 's'}</span>`;
+  det.appendChild(sum);
+
+  const body = document.createElement('div');
+  body.className = 'cat-body';
+  if (cat.note) {
+    const note = document.createElement('p');
+    note.className = 'cat-note';
+    note.textContent = cat.note;
+    body.appendChild(note);
+  }
+  const rows = document.createElement('div');
+  rows.className = 'rows';
+  drawRows(rows, cat.rows, teams);
+  body.appendChild(rows);
+  det.appendChild(body);
+  return det;
 }
 
 function drawTeams(teams) {
@@ -236,14 +328,18 @@ function drawRows(wrap, rows, teams) {
   const head = document.createElement('div');
   head.className = 'rows-head';
   head.innerHTML = `<div class="th-label"></div>` + teams.map((t) => (
-    `<div class="th-team" style="--team:${esc(accent(t))}">${esc(t.abbr)}` +
+    `<div class="th-team" style="--team:${esc(accent(t))}">` +
+    (t.logo ? `<img class="th-logo" src="${esc(t.logo)}" alt="" width="20" height="20">` : '') +
+    `<span>${esc(t.abbr)}</span>` +
     (Number.isFinite(t.gamesPlayed) ? `<span class="th-gp">${t.gamesPlayed} game${t.gamesPlayed === 1 ? '' : 's'}</span>` : '') +
     `</div>`
   )).join('');
   wrap.appendChild(head);
 
   for (const row of rows) {
-    const max = Math.max(...teams.map((t) => Math.abs(row.values[t.key] ?? 0)), 0);
+    const nums = teams.map((t) => row.values[t.key]).filter((v) => Number.isFinite(v));
+    const max = nums.length ? Math.max(...nums) : 0;
+    const min = nums.length ? Math.min(...nums) : 0;
     const el = document.createElement('div');
     el.className = 'row';
 
@@ -263,7 +359,14 @@ function drawRows(wrap, rows, teams) {
       const lead = row.leaders.includes(t.key);
       const cell = document.createElement('div');
       cell.className = `cell${lead ? ' lead' : ''}${display == null ? ' empty' : ''}`;
-      const width = max > 0 && Number.isFinite(v) ? Math.max(2, (Math.abs(v) / max) * 100) : 0;
+      // Point differential and a quarterback's rushing yards both go
+      // negative. Scaling by absolute value drew the WORST team the longest
+      // bar, so when anything in the row is below zero the row is scaled
+      // across its own range instead: lowest empty, highest full.
+      const width = !Number.isFinite(v) ? 0
+        : min < 0 ? (max === min ? 100 : Math.max(2, ((v - min) / (max - min)) * 100))
+        : max > 0 ? Math.max(2, (v / max) * 100)
+        : 0;
       cell.innerHTML = `
         <div class="cell-top">
           <span class="bar-val">${display == null ? '—' : esc(display) + esc(row.suffix || '')}</span>
@@ -288,7 +391,7 @@ function drawQbs(teams) {
       ${t.qb.headshot ? `<img class="qb-shot" src="${esc(t.qb.headshot)}" alt="" width="62" height="62" loading="lazy">` : '<div class="qb-shot"></div>'}
       <div>
         <div class="qb-name">${esc(t.qb.name || '')}</div>
-        <div class="qb-meta">${esc(t.abbr)} · ${esc(t.qb.position || 'QB')}${t.qb.jersey ? ` · #${esc(t.qb.jersey)}` : ''}</div>
+        <div class="qb-meta">${t.logo ? `<img class="qb-team-logo" src="${esc(t.logo)}" alt="" width="16" height="16" loading="lazy">` : ''}${esc(t.abbr)} · ${esc(t.qb.position || 'QB')}${t.qb.jersey ? ` · #${esc(t.qb.jersey)}` : ''}</div>
         ${t.qb.line ? `<div class="qb-line">${esc(t.qb.line)}</div>` : ''}
       </div>
     `;
@@ -356,7 +459,7 @@ function meetingRow(g, byKey) {
   return `<li>
     <span class="yr">${esc(g.season)}</span>
     <span>${esc(g.away)} ${esc(g.awayScore)} @ ${esc(g.home)} ${esc(g.homeScore)}</span>
-    <span class="res" style="background:${esc(col)};color:${esc(inkOn(col))}"><span>${esc(g.winner || 'TIE')}</span></span>
+    <span class="res" style="background:${esc(col)};color:${esc(inkOn(col))}"><span>${winner?.logo ? `<img src="${esc(winner.logo)}" alt="" width="13" height="13" loading="lazy">` : ''}${esc(g.winner || 'TIE')}</span></span>
   </li>`;
 }
 
@@ -430,7 +533,9 @@ function drawTicker() {
 
   const html = items.map((it) => {
     const style = it.team ? ` style="--team:${esc(accent(it.team))};--team-ink:${esc(inkOn(accent(it.team)))}"` : '';
-    const tag = it.team ? `<span class="ticker-tag"${style}><span>${esc(it.team.abbr)}</span></span>` : '';
+    const tag = it.team
+      ? `<span class="ticker-tag"${style}><span>${it.team.logo ? `<img src="${esc(it.team.logo)}" alt="" width="15" height="15">` : ''}${esc(it.team.abbr)}</span></span>`
+      : '';
     return `<li>${tag}${it.html}</li>`;
   }).join('');
 

@@ -81,6 +81,12 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   font-family: var(--display); font-size: 1.6rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: .01em; line-height: 1;
 }
+/* The name IS the three clubs, so it is set in the three clubs' colours —
+   the same drawn colours the rest of the page uses, not the raw primaries. */
+.bn { font-weight: 700; }
+.bn-gb  { color: #3d8a5b; }
+.bn-lv  { color: #b9c0c4; }
+.bn-buf { color: #2f7bff; }
 .brand-thin { font-weight: 500; color: var(--ink-2); }
 
 .season {
@@ -128,7 +134,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   padding: .12rem .5rem; transform: skewX(-12deg);
   background: var(--team); color: var(--team-ink);
 }
-.ticker-tag > span { display: inline-block; transform: skewX(12deg); }
+.ticker-tag > span { display: inline-flex; align-items: center; gap: .3rem; transform: skewX(12deg); }
+.ticker-tag img { width: 15px; height: 15px; object-fit: contain; }
 
 .ticker-list b { color: var(--ink); font-weight: 600; }
 .ticker-live {
@@ -232,6 +239,40 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 }
 .team-next b { color: var(--ink); font-weight: 600; letter-spacing: .02em; }
 
+/* ------------------------------------------------------------- categories */
+
+.cat { border: 1px solid var(--line); background: rgba(9, 13, 19, .7); margin-bottom: .55rem; }
+.cat[open] { border-color: var(--line-2); }
+
+.cat > summary {
+  display: flex; align-items: center; gap: .6rem; cursor: pointer;
+  padding: .65rem .9rem;
+  font-family: var(--display); font-size: 1.3rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .03em;
+  list-style: none;   /* Firefox */
+  user-select: none;
+}
+/* Safari and Chrome draw their own triangle; ours is the SVG chevron. */
+.cat > summary::-webkit-details-marker { display: none; }
+.cat > summary::marker { content: ''; }
+.cat > summary:hover { background: rgba(255, 255, 255, .025); }
+.cat > summary:focus-visible { outline: 2px solid #4b8dff; outline-offset: -2px; }
+
+.cat-arrow { flex: none; color: var(--ink-3); transition: transform .18s ease; }
+.cat[open] .cat-arrow { transform: rotate(90deg); color: var(--ink-2); }
+
+.cat-count {
+  margin-left: auto; color: var(--ink-3);
+  font-family: var(--body); font-size: .64rem; font-weight: 400;
+  text-transform: uppercase; letter-spacing: .1em;
+}
+
+.cat-note { margin: 0; padding: 0 .9rem .7rem; color: var(--ink-3); font-size: .76rem; max-width: 46rem; }
+.cat-body { border-top: 1px solid var(--line); padding-top: .1rem; }
+.cat .rows { border: 0; background: none; }
+
+@media (prefers-reduced-motion: reduce) { .cat-arrow { transition: none; } }
+
 /* ------------------------------------------------------- comparison rows */
 
 .rows { border: 1px solid var(--line); background: rgba(9, 13, 19, .75); }
@@ -241,6 +282,7 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .rows-head div:last-child { border-right: 0; }
 .rows-head .th-team { color: var(--ink); font-family: var(--display); font-weight: 700; font-size: 1.05rem; letter-spacing: .04em; }
 .rows-head .th-team::before { content: ""; width: 5px; height: 1em; transform: skewX(-12deg); background: var(--team); flex: none; }
+.th-logo { width: 20px; height: 20px; object-fit: contain; flex: none; }
 .th-gp { color: var(--ink-3); font-family: var(--body); font-weight: 400; font-size: .62rem; letter-spacing: .06em; margin-left: auto; }
 
 .row { display: grid; grid-template-columns: 13rem repeat(3, 1fr); border-top: 1px solid var(--line); }
@@ -307,7 +349,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .meetings li:last-child { border-bottom: 0; }
 .meetings .yr { color: var(--ink-3); font-size: .68rem; width: 2.4rem; flex: none; font-variant-numeric: tabular-nums; }
 .meetings .res { margin-left: auto; font-family: var(--display); font-weight: 700; font-size: .78rem; letter-spacing: .05em; padding: .05rem .4rem; transform: skewX(-12deg); }
-.meetings .res > span { display: inline-block; transform: skewX(12deg); }
+.meetings .res > span { display: inline-flex; align-items: center; gap: .25rem; transform: skewX(12deg); }
+.meetings .res img { width: 13px; height: 13px; object-fit: contain; }
 .meetings .sched { margin-left: auto; font-size: .66rem; color: var(--ink-3); border: 1px solid var(--line-2); padding: .05rem .4rem; text-transform: uppercase; letter-spacing: .06em; }
 
 /* ----------------------------------------------------------- quarterbacks */
@@ -325,7 +368,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 }
 .qb-shot { width: 66px; height: 66px; border-radius: 50%; object-fit: cover; object-position: top center; background: color-mix(in srgb, var(--team) 60%, #0a0e14); flex: none; border: 2px solid var(--team); }
 .qb-name { font-family: var(--display); font-weight: 700; font-size: 1.35rem; line-height: 1; text-transform: uppercase; letter-spacing: .02em; }
-.qb-meta { color: var(--ink-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .09em; margin-top: .2rem; }
+.qb-meta { color: var(--ink-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .09em; margin-top: .2rem; display: flex; align-items: center; gap: .3rem; }
+.qb-team-logo { width: 16px; height: 16px; object-fit: contain; }
 .qb-line { color: var(--ink-2); font-size: .76rem; margin-top: .3rem; font-variant-numeric: tabular-nums; }
 
 /* --------------------------------------------------------------- history */

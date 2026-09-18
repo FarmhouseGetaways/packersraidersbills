@@ -1,4 +1,4 @@
-# SportsTicker
+# PackersRaidersBills
 
 A live statistical comparison of three NFL clubs — the **Green Bay Packers**,
 the **Las Vegas Raiders** and the **Buffalo Bills**. Dark page, each club drawn
@@ -6,8 +6,26 @@ in its own colours, a scrolling ticker across the top, and the rest of the page
 broken into sections: offence, defence, quarterbacks, head-to-head and twenty
 seasons of history.
 
+**The page is branded PackersRaidersBills** — that is the title, the masthead
+(each club's word in its own drawn colour) and the favicon. The repository name
+is separate and may differ; nothing in the code reads it.
+
 Hand-written HTML, one CSS file, one JavaScript file, two Netlify functions. No
 build step, no dependencies, no npm.
+
+## What is on it
+
+| Section | What it holds |
+|---|---|
+| Three club panels | Record, standing, points for and against, differential, next fixture |
+| Head to head | All three pairings, series record and every meeting since 2007 |
+| The numbers | **Seven collapsible categories, 89 statistics** — scoring & drives, passing, rushing, receiving, defence, turnovers & discipline, kicking/punting/returns |
+| Quarterbacks | Each club's leading passer, and a 14-row comparison |
+| The last twenty seasons | Win bars per season, one shared scale across all three clubs |
+
+Each category is a real `<details>`, so it opens with a click or the keyboard.
+Scoring and Passing start open; the rest start shut, because 103 rows opened at
+once is a wall rather than a page.
 
 ## Every number on this page is live
 
@@ -81,12 +99,18 @@ club's own silver.
 
 Broadcast graphics, not a spreadsheet: condensed display type (Barlow
 Condensed, with Arial Narrow and the system stack behind it), a club's colour
-used as a hard diagonal flood rather than a hint, logos bled off the panel
-corner as watermarks, and numbers set large enough to read at a glance. The
-skewed tick — in the masthead mark, the section headings, the ticker tags and
-the winner chips — is the one repeated motif.
+used as a hard diagonal flood rather than a hint, and numbers set large enough
+to read at a glance. The skewed tick — in the masthead mark, the section
+headings, the ticker tags and the winner chips — is the one repeated motif.
 
-Three rules that are easy to undo by accident:
+**Club logos are used wherever there is room**: bled off each panel corner as a
+watermark and again small beside the name, in every comparison table's column
+headings, on the ticker tags, on the quarterback cards, on both sides of a
+head-to-head panel, on each past meeting's winner chip, and on each row of the
+twenty-season history. They come from ESPN's `500-dark` variants, which are
+drawn for a dark background.
+
+Five rules that are easy to undo by accident:
 
 - **A skewed box needs an unskewed child.** `.ticker-tag` and `.meetings .res`
   transform the box by -12deg and the inner `<span>` back by +12deg. Drop the
@@ -99,6 +123,16 @@ Three rules that are easy to undo by accident:
 - **The rank stacks under the value below 56rem.** Three cells across a phone
   leaves no room beside it, and "419.0" and "6th in NFL" ran together into
   "419.06th in NFL".
+- **Which categories are open is held outside the DOM**, in a Map of key to
+  boolean. The page redraws every 60 seconds and a rebuilt `<details>` defaults
+  to closed, so without this a category the reader opened would snap shut under
+  them once a minute. It is a map rather than a list of open keys on purpose: a
+  list cannot tell "the reader closed this" from "this category did not exist
+  yet", so a category added later would never get its own default.
+- **A row containing a negative value is scaled across its own range.** Point
+  differential and a quarterback's rushing yards both go below zero, and
+  scaling by absolute value drew the WORST team the longest bar — Green Bay's
+  −17 differential rendered as a full-width leader.
 
 ## Running it locally
 
@@ -169,6 +203,10 @@ once, on another site. The repo is the source of truth.
   ESPN's public API takes no key.
 - **A sitemap**, once the live URL is known. `robots.txt` already allows
   everything.
+- **More statistics.** Adding one is a line in the right category in
+  `netlify/functions/_lib/metrics.mjs` — a label, the ESPN category and stat
+  name, and which direction is better. Nothing else needs touching; the API and
+  the page both build themselves from that list.
 - **More than three clubs.** Adding one is an entry in `TEAMS` in
   `netlify/functions/_lib/espn.mjs` — id, abbreviation, lowercase slug, every
   abbreviation the franchise has used, and fallback colours. Nothing else is

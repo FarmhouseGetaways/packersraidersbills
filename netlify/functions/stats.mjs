@@ -8,7 +8,7 @@
 import {
   TEAMS, CORE, SITE, getJson, indexCategories, pick, readRecord, allSettledValues,
 } from './_lib/espn.mjs';
-import { OFFENCE, DEFENCE, QB, leaders } from './_lib/metrics.mjs';
+import { CATEGORIES, QB, leaders, clock } from './_lib/metrics.mjs';
 
 const TTL_MS = 120_000; // two minutes — live enough for a scoreboard, kind to ESPN
 let cache = { at: 0, payload: null };
@@ -55,8 +55,10 @@ async function build() {
     // The winner of each row is decided here, once, so the page cannot
     // disagree with itself about who is ahead.
     comparison: {
-      offence: compare(OFFENCE, teams),
-      defence: compare(DEFENCE, teams),
+      categories: CATEGORIES.map((c) => ({
+        key: c.key, title: c.title, note: c.note ?? null, open: !!c.open,
+        rows: compare(c.metrics, teams),
+      })),
       qb: compare(QB, teams, (t) => t.qb?.indexed),
     },
   };
@@ -198,7 +200,9 @@ function compare(metrics, teams, source = (t) => t.indexed) {
       }
       const s = pick(source(t), m.cat, m.stat);
       values[t.key] = s.value;
-      displays[t.key] = s.display;
+      // Time of possession arrives as a raw second count; "3448" is not a
+      // time of possession anybody reads.
+      displays[t.key] = m.format === 'clock' ? clock(s.value) : s.display;
       ranks[t.key] = s.rank;
     }
     return {
