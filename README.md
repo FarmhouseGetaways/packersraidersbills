@@ -77,6 +77,29 @@ Bills red: legible, and wrong. The Raiders' primary is literally `#000000` —
 there is no hue to lighten, only grey — so that one alone falls back to the
 club's own silver.
 
+## The look
+
+Broadcast graphics, not a spreadsheet: condensed display type (Barlow
+Condensed, with Arial Narrow and the system stack behind it), a club's colour
+used as a hard diagonal flood rather than a hint, logos bled off the panel
+corner as watermarks, and numbers set large enough to read at a glance. The
+skewed tick — in the masthead mark, the section headings, the ticker tags and
+the winner chips — is the one repeated motif.
+
+Three rules that are easy to undo by accident:
+
+- **A skewed box needs an unskewed child.** `.ticker-tag` and `.meetings .res`
+  transform the box by -12deg and the inner `<span>` back by +12deg. Drop the
+  span and the lettering leans over with the box.
+- **The leading cell is flooded, not outlined.** On a table this dense a 3px
+  edge is genuinely hard to find. The flood percentage is set per club by
+  `themed()` in `js/app.js`, because a pale accent floods far more strongly
+  than a dark one at the same value — the Raiders' silver washed out their
+  whole column at the percentage that barely showed the Packers' green.
+- **The rank stacks under the value below 56rem.** Three cells across a phone
+  leaves no room beside it, and "419.0" and "6th in NFL" ran together into
+  "419.06th in NFL".
+
 ## Running it locally
 
 ```
@@ -85,6 +108,14 @@ node tools/dev-server.mjs          # http://127.0.0.1:8099
 
 It serves the repo as static files and routes `/api/*` to the same function
 modules Netlify runs, so what you check locally is the real thing.
+
+Two things to know if you drive it with a headless browser. The team logos and
+player headshots come from `a.espncdn.com`, which a sandboxed environment may
+block on certificate grounds — launch Chromium with
+`--ignore-certificate-errors` to see the page as a visitor does. And the
+headshots are `loading="lazy"`, so a capture has to scroll the page AND wait
+for them to decode before shooting; scrolling back to the top too early
+cancels the fetches and they come out as empty circles.
 
 ```
 node --test netlify/functions/_lib/*.test.mjs

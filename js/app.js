@@ -131,6 +131,10 @@ function themed(el, team) {
   const a = accent(team);
   el.style.setProperty('--team', a);
   el.style.setProperty('--team-ink', inkOn(a));
+  // A pale accent floods much more strongly than a dark one at the same
+  // percentage: the Raiders' silver washed out their whole column while the
+  // Packers' green barely showed. Scale the tint to the colour's brightness.
+  el.style.setProperty('--team-flood', luminance(a) > 0.3 ? '7%' : '14%');
   return el;
 }
 
@@ -183,9 +187,11 @@ function drawTeams(teams) {
     const card = document.createElement('article');
     card.className = 'team-card';
     card.innerHTML = `
+      ${t.logo ? `<img class="team-watermark" src="${esc(t.logo)}" alt="" width="150" height="150" loading="lazy">` : ''}
       <div class="team-top">
-        ${t.logo ? `<img class="team-logo" src="${esc(t.logo)}" alt="" width="46" height="46" loading="lazy">` : ''}
+        ${t.logo ? `<img class="team-logo" src="${esc(t.logo)}" alt="" width="42" height="42" loading="lazy">` : ''}
         <div>
+          <div class="team-abbr">${esc(t.abbr)}</div>
           <div class="team-name">${esc(t.displayName || t.name)}</div>
           <div class="team-standing">${esc(t.standing || '')}</div>
         </div>
@@ -313,6 +319,8 @@ function drawHistory() {
 
     const card = document.createElement('article');
     card.className = 'h2h-card';
+    card.style.setProperty('--a', accent(a));
+    card.style.setProperty('--b', accent(b));
     card.innerHTML = `
       <div class="h2h-top">
         <span class="h2h-side">${a.logo ? `<img src="${esc(a.logo)}" alt="" width="26" height="26" loading="lazy">` : ''}${esc(a.abbr)}</span>
@@ -348,7 +356,7 @@ function meetingRow(g, byKey) {
   return `<li>
     <span class="yr">${esc(g.season)}</span>
     <span>${esc(g.away)} ${esc(g.awayScore)} @ ${esc(g.home)} ${esc(g.homeScore)}</span>
-    <span class="res" style="background:${esc(col)};color:${esc(inkOn(col))}">${esc(g.winner || 'TIE')}</span>
+    <span class="res" style="background:${esc(col)};color:${esc(inkOn(col))}"><span>${esc(g.winner || 'TIE')}</span></span>
   </li>`;
 }
 
@@ -422,7 +430,7 @@ function drawTicker() {
 
   const html = items.map((it) => {
     const style = it.team ? ` style="--team:${esc(accent(it.team))};--team-ink:${esc(inkOn(accent(it.team)))}"` : '';
-    const tag = it.team ? `<span class="ticker-tag"${style}>${esc(it.team.abbr)}</span>` : '';
+    const tag = it.team ? `<span class="ticker-tag"${style}><span>${esc(it.team.abbr)}</span></span>` : '';
     return `<li>${tag}${it.html}</li>`;
   }).join('');
 
