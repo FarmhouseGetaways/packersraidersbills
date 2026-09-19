@@ -9,7 +9,7 @@ const state = { stats: null, history: null };
 
 /**
  * 'stats' (the regular scrolling notes) or 'scores' (this week's games,
- * date/time/score, for the whole slate — not just our three clubs). Starts
+ * date/time/score, for the whole NFL slate). Starts
  * null; the first stats load picks a default — 'scores' if today is a game
  * day for any of the three clubs, 'stats' otherwise — and a click on the
  * toggle overrides that for the rest of the session. Refreshing every 60s
@@ -734,8 +734,8 @@ function buildStatsTickerItems(d) {
 }
 
 /**
- * This week's full slate for the three clubs — not just live ones, unlike
- * the small in-progress note the stats ticker carries. One item per game,
+ * This week's full slate for the WHOLE league — not just live ones, unlike
+ * the small in-progress note the stats ticker carries (ours only). One item per game,
  * whatever its state: kickoff date/time if it hasn't started, the score and
  * clock if it has, the final score once it's over. `g.detail` already reads
  * as a finished sentence in every state ("9/20 - 1:00 PM EDT", "Q3 8:42",
@@ -772,9 +772,13 @@ function drawTicker() {
   const d = state.stats;
   if (!d) return;
 
-  updateTickerToggle(d.live);
-  const scores = tickerMode === 'scores' && (d.live || []).length > 0;
-  const items = scores ? buildScoreTickerItems(d.live) : buildStatsTickerItems(d);
+  // The scores ticker is the whole league's week (d.slate); everything else
+  // — the live-scores strip, the game-day default, the LIVE note in the
+  // stats ticker — stays our three clubs' own games (d.live).
+  const slate = d.slate || d.live || [];
+  updateTickerToggle(slate);
+  const scores = tickerMode === 'scores' && slate.length > 0;
+  const items = scores ? buildScoreTickerItems(slate) : buildStatsTickerItems(d);
   $('ticker-track').dataset.mode = scores ? 'scores' : 'stats';
 
   // One full pass of the content. The last item of each pass is marked so

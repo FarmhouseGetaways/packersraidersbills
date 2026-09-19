@@ -46,12 +46,14 @@ async function build() {
   const season = readSeason(scoreboard);
 
   const teams = await Promise.all(TEAMS.map((t) => buildTeam(t, season.year)));
+  const slate = weekGames(scoreboard);
 
   return {
     generated: new Date().toISOString(),
     season,
     teams,
-    live: liveGames(scoreboard),
+    live: slate.filter((g) => g.ours),   // our three clubs' games only
+    slate,                               // the whole league's week
     // The winner of each row is decided here, once, so the page cannot
     // disagree with itself about who is ahead.
     comparison: {
@@ -159,19 +161,24 @@ function cleanRef(ref) {
   return String(ref).replace(/^http:/, 'https:').split('?')[0];
 }
 
-/** Any of the three teams playing right now, for the ticker. */
-function liveGames(scoreboard) {
+/**
+ * Every game on this week's scoreboard, the whole league's, soonest first.
+ * `ours` marks the ones involving one of the three clubs: the live-scores
+ * strip and the game-day default are ours only, while the scores ticker
+ * shows the full slate.
+ */
+function weekGames(scoreboard) {
   const ours = new Set(TEAMS.map((t) => t.abbr));
   const out = [];
   for (const ev of scoreboard?.events || []) {
     const comp = ev.competitions?.[0];
     const cs = comp?.competitors || [];
-    if (!cs.some((c) => ours.has(c.team?.abbreviation))) continue;
     out.push({
       name: ev.shortName ?? null,
-      date: ev.date ?? null,                          // kickoff, ISO — drives the ticker toggle's default and the live-scores window
+      date: ev.date ?? null,                          // kickoff, ISO — drives the game-day default and the live-scores window
       state: comp?.status?.type?.state ?? null,       // pre | in | post
       detail: comp?.status?.type?.shortDetail ?? null,
+      ours: cs.some((c) => ours.has(c.team?.abbreviation)),
       teams: cs.map((c) => ({
         abbr: c.team?.abbreviation ?? null,
         score: c.score != null ? Number(c.score) : null,
@@ -179,7 +186,7 @@ function liveGames(scoreboard) {
       })),
     });
   }
-  return out;
+  return out.sort((a, b) => String(a.date).localeCompare(String(b.date)));
 }
 
 /**
