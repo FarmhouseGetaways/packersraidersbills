@@ -22,7 +22,7 @@ build step, no dependencies, no npm.
 | Section | What it holds |
 |---|---|
 | Three club panels | Record, standing, points for and against, differential, next fixture |
-| Head to head | All three pairings, series record and every meeting since 2007 |
+| Head to head | All three pairings, series record and every meeting since the 1970 AFL–NFL merger |
 | The numbers | **Seven collapsible categories, 89 statistics** — scoring & drives, passing, rushing, receiving, defence, turnovers & discipline, kicking/punting/returns |
 | Quarterbacks | Each club's leading passer, and a 14-row comparison |
 | The last twenty seasons | Win bars per season, one shared scale across all three clubs |
@@ -39,7 +39,7 @@ two endpoints, which read ESPN's public API:
 | Endpoint | Serves | Cached |
 |---|---|---|
 | `/api/stats` | Season records, standings, team statistics with league ranks, each club's leading passer, live scores | 2 minutes |
-| `/api/history` | Head-to-head series and season-by-season form, twenty seasons | 6 hours |
+| `/api/history` | Head-to-head series back to 1970 and season-by-season form for the last twenty seasons | 6 hours |
 
 The page refreshes the live half every 60 seconds and whenever the tab is
 brought back to the front.

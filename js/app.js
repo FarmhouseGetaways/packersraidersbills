@@ -104,8 +104,16 @@ function fail(err) {
  *
  * Dropping every dark primary to its secondary (the first version of this)
  * turned the Packers gold and the Bills red, which is legible and wrong.
+ *
+ * Lightening alone isn't enough, either. Green Bay's green is dark AND only
+ * moderately saturated (ESPN's own swatch is ~42% saturation, against the
+ * Bills' fully-saturated navy), so raising just its lightness to clear
+ * MIN_LUM produced a flat, grey-green next to the Bills' vivid blue. The
+ * saturation is floored too, so a muted dark colour comes out reading as
+ * its hue, not as a wash of it.
  */
 const MIN_LUM = 0.13;
+const MIN_SAT = 0.6;
 
 function accent(team) {
   const primary = team.color || '#4a5a70';
@@ -113,9 +121,10 @@ function accent(team) {
   if (s < 0.12) return team.alt || '#a5acaf';   // black, white or grey: no hue to keep
   if (luminance(primary) >= MIN_LUM) return primary;
 
+  const sat = Math.max(s, MIN_SAT);
   let lift = l;
-  while (lift < 0.62 && luminance(hslHex(h, s, lift)) < MIN_LUM) lift += 0.02;
-  return hslHex(h, s, lift);
+  while (lift < 0.62 && luminance(hslHex(h, sat, lift)) < MIN_LUM) lift += 0.02;
+  return hslHex(h, sat, lift);
 }
 
 function hsl(hex) {
@@ -274,6 +283,13 @@ function buildCategory(cat, teams) {
 function drawTeams(teams) {
   const wrap = $('teams');
   wrap.textContent = '';
+
+  // Rank among just these three clubs on the headline numbers — computed
+  // once, up front, the same way drawRows ranks a stat row.
+  const pfRank = rankAmong(teams, (t) => t.record?.pointsForPerGame, false);
+  const paRank = rankAmong(teams, (t) => t.record?.pointsAgainstPerGame, true);
+  const diffRank = rankAmong(teams, (t) => t.record?.differential, false);
+
   for (const t of teams) {
     const r = t.record || {};
     const card = document.createElement('article');
@@ -293,9 +309,9 @@ function drawTeams(teams) {
         <span class="record-label">record</span>
       </div>
       <div class="team-grid">
-        ${kv('Points for / game', num(r.pointsForPerGame, 1))}
-        ${kv('Points against / game', num(r.pointsAgainstPerGame, 1))}
-        ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential)}
+        ${kv('Points for / game', num(r.pointsForPerGame, 1), rankBadge(pfRank[t.key]))}
+        ${kv('Points against / game', num(r.pointsAgainstPerGame, 1), rankBadge(paRank[t.key]))}
+        ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, rankBadge(diffRank[t.key]))}
         ${kv('Games played', statOf(t, 'general', 'gamesPlayed'))}
       </div>
       ${t.nextEvent ? `<p class="team-next">Next: <b>${esc(t.nextEvent.name || '')}</b> ${esc(shortDate(t.nextEvent.date))}</p>` : ''}
@@ -304,7 +320,7 @@ function drawTeams(teams) {
   }
 }
 
-const kv = (k, v) => `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${esc(v)}</span></div>`;
+const kv = (k, v, badge = '') => `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${badge}${esc(v)}</span></div>`;
 
 function num(v, dp = 0) {
   return Number.isFinite(v) ? v.toFixed(dp) : '—';
@@ -313,6 +329,30 @@ function num(v, dp = 0) {
 function statOf(team, cat, name) {
   return team.indexed?.[cat]?.[name]?.display ?? '—';
 }
+
+/**
+ * Where each team stands among just these three clubs on one measure — 1
+ * for the best, tied values share a rank, and the next rank after a tie
+ * skips ahead (standard competition ranking: 1, 1, 3, not 1, 1, 2).
+ */
+function rankAmong(teams, valueOf, lowerIsBetter) {
+  const dir = lowerIsBetter ? 1 : -1;
+  const entries = teams
+    .map((t) => ({ key: t.key, v: valueOf(t) }))
+    .filter((e) => Number.isFinite(e.v))
+    .sort((a, b) => dir * (a.v - b.v));
+  const ranks = {};
+  let rank = 0;
+  entries.forEach((e, i) => {
+    if (i === 0 || e.v !== entries[i - 1].v) rank = i + 1;
+    ranks[e.key] = rank;
+  });
+  return ranks;
+}
+
+/** Small "1st of these three" badge — same visual token wherever a rank
+ *  among just the three clubs is shown, colour-filled only for the leader. */
+const rankBadge = (rank) => (rank ? `<span class="rank-num${rank === 1 ? ' lead' : ''}">${rank}</span> ` : '');
 
 /**
  * One comparison table.
@@ -325,12 +365,21 @@ function statOf(team, cat, name) {
 function drawRows(wrap, rows, teams) {
   wrap.textContent = '';
 
+  // How many of this table's rows each club leads — the count the table as
+  // a whole boils down to, shown in the header rather than left for the
+  // reader to tally themselves.
+  const leadCounts = Object.fromEntries(
+    teams.map((t) => [t.key, rows.filter((r) => r.leaders.includes(t.key)).length]),
+  );
+  const topLead = Math.max(...Object.values(leadCounts));
+
   const head = document.createElement('div');
   head.className = 'rows-head';
   head.innerHTML = `<div class="th-label"></div>` + teams.map((t) => (
     `<div class="th-team" style="--team:${esc(accent(t))}">` +
     (t.logo ? `<img class="th-logo" src="${esc(t.logo)}" alt="" width="20" height="20">` : '') +
     `<span>${esc(t.abbr)}</span>` +
+    `<span class="th-lead${topLead > 0 && leadCounts[t.key] === topLead ? ' top' : ''}">Leading in ${leadCounts[t.key]}</span>` +
     (Number.isFinite(t.gamesPlayed) ? `<span class="th-gp">${t.gamesPlayed} game${t.gamesPlayed === 1 ? '' : 's'}</span>` : '') +
     `</div>`
   )).join('');
@@ -340,6 +389,7 @@ function drawRows(wrap, rows, teams) {
     const nums = teams.map((t) => row.values[t.key]).filter((v) => Number.isFinite(v));
     const max = nums.length ? Math.max(...nums) : 0;
     const min = nums.length ? Math.min(...nums) : 0;
+    const among = rankAmong(teams, (t) => row.values[t.key], row.better === 'low');
     const el = document.createElement('div');
     el.className = 'row';
 
@@ -369,7 +419,10 @@ function drawRows(wrap, rows, teams) {
         : 0;
       cell.innerHTML = `
         <div class="cell-top">
-          <span class="bar-val">${display == null ? '—' : esc(display) + esc(row.suffix || '')}</span>
+          <span class="cell-val">
+            ${display != null && among[t.key] ? `<span class="rank-num${lead ? ' lead' : ''}">${among[t.key]}</span>` : ''}
+            <span class="bar-val">${display == null ? '—' : esc(display) + esc(row.suffix || '')}</span>
+          </span>
           ${rank ? `<span class="rank">${esc(ordinal(rank))} in NFL</span>` : ''}
         </div>
         <div class="bar"><i style="width:${width}%"></i></div>
@@ -385,6 +438,7 @@ function drawQbs(teams) {
   wrap.textContent = '';
   for (const t of teams) {
     if (!t.qb) continue;
+    const rating = t.qb.indexed?.passing?.QBRating?.display;
     const card = document.createElement('article');
     card.className = 'qb-card';
     card.innerHTML = `
@@ -394,6 +448,7 @@ function drawQbs(teams) {
         <div class="qb-meta">${t.logo ? `<img class="qb-team-logo" src="${esc(t.logo)}" alt="" width="16" height="16" loading="lazy">` : ''}${esc(t.abbr)} · ${esc(t.qb.position || 'QB')}${t.qb.jersey ? ` · #${esc(t.qb.jersey)}` : ''}</div>
         ${t.qb.line ? `<div class="qb-line">${esc(t.qb.line)}</div>` : ''}
       </div>
+      ${rating ? `<div class="qb-rating"><span class="v">${esc(rating)}</span><span class="k">Rating</span></div>` : ''}
     `;
     wrap.appendChild(themed(card, t));
   }
@@ -408,7 +463,7 @@ function drawHistory() {
 
   const byKey = Object.fromEntries(teams.map((t) => [t.key, t]));
 
-  $('h2h-note').textContent = `Every meeting since ${h.window.from}. Oakland-era games count as the Raiders.`;
+  $('h2h-note').textContent = `Every meeting since the AFL–NFL merger in ${h.h2hWindow.from}. Oakland-era games count as the Raiders.`;
   const wrap = $('h2h');
   wrap.textContent = '';
 
@@ -437,7 +492,7 @@ function drawHistory() {
         <i style="width:${total ? (aw / total) * 100 : 50}%;background:${esc(accent(a))}"></i>
         <i style="width:${total ? (bw / total) * 100 : 50}%;background:${esc(accent(b))}"></i>
       </div>
-      <p class="h2h-meta">${pair.record.played} meeting${pair.record.played === 1 ? '' : 's'} since ${h.window.from}${pair.record.ties ? `, ${pair.record.ties} tied` : ''}</p>
+      <p class="h2h-meta">${pair.record.played} meeting${pair.record.played === 1 ? '' : 's'} since ${h.h2hWindow.from}${pair.record.ties ? `, ${pair.record.ties} tied` : ''}</p>
       <ul class="meetings">
         ${pair.games.slice(0, 6).map((g) => meetingRow(g, byKey)).join('')}
       </ul>
@@ -463,6 +518,30 @@ function meetingRow(g, byKey) {
   </li>`;
 }
 
+/**
+ * Which club(s) had the most wins in each season, among just the seasons
+ * where at least two of the three clubs have data. A year where every club
+ * present is tied marks nobody — there is no "best" to point at.
+ */
+function bestOfYear(h, teams) {
+  const byYear = {};
+  for (const t of teams) {
+    for (const s of h.seasons[t.key] || []) {
+      if (!s.played) continue;
+      (byYear[s.year] ??= {})[t.key] = s.wins;
+    }
+  }
+  const best = {};
+  for (const [year, byTeam] of Object.entries(byYear)) {
+    const keys = Object.keys(byTeam);
+    if (keys.length < 2) continue;
+    const max = Math.max(...keys.map((k) => byTeam[k]));
+    const winners = keys.filter((k) => byTeam[k] === max);
+    if (winners.length < keys.length) best[year] = new Set(winners);
+  }
+  return best;
+}
+
 function drawSeasons(h, teams) {
   const wrap = $('history');
   wrap.textContent = '';
@@ -470,6 +549,7 @@ function drawSeasons(h, teams) {
   // would look the same height as a 13-win season on another.
   const allWins = Object.values(h.seasons).flat().filter((s) => s.played).map((s) => s.wins);
   const maxWins = Math.max(...allWins, 1);
+  const best = bestOfYear(h, teams);
 
   for (const t of teams) {
     const seasons = h.seasons[t.key] || [];
@@ -490,8 +570,9 @@ function drawSeasons(h, teams) {
         ${seasons.map((s) => {
           if (!s.played) return `<div class="season-col none" title="${esc(s.year)}: no data"><span class="sb" style="height:4%"></span><span class="sy">${String(s.year).slice(2)}</span></div>`;
           const winning = s.wins > s.losses;
-          return `<div class="season-col${winning ? ' winning' : ''}" title="${esc(s.year)}: ${s.wins}–${s.losses}${s.ties ? `–${s.ties}` : ''}">
-            <span class="sr">${s.wins}–${s.losses}</span>
+          const isBest = best[s.year]?.has(t.key);
+          return `<div class="season-col${winning ? ' winning' : ''}" title="${esc(s.year)}: ${s.wins}–${s.losses}${s.ties ? `–${s.ties}` : ''}${isBest ? ' — best of the three that season' : ''}">
+            <span class="sr">${isBest ? '<span class="sr-best">★</span>' : ''}${s.wins}–${s.losses}</span>
             <span class="sb" style="height:${(s.wins / maxWins) * 100}%"></span>
             <span class="sy">${String(s.year).slice(2)}</span>
           </div>`;
@@ -500,7 +581,7 @@ function drawSeasons(h, teams) {
     `;
     wrap.appendChild(themed(row, t));
   }
-  $('history-note').textContent = `Bar height is wins in that season, on one scale across all three clubs. ${h.window.from}–${h.window.to}.`;
+  $('history-note').textContent = `Bar height is wins in that season, on one scale across all three clubs. ★ marks whichever club won the most games that year. ${h.seasonWindow.from}–${h.seasonWindow.to}.`;
   $('history-section').hidden = false;
 }
 
@@ -528,7 +609,7 @@ function drawTicker() {
 
   for (const pair of state.history?.h2h || []) {
     const [ak, bk] = pair.pair;
-    items.push({ team: null, html: `<span>Series since ${esc(state.history.window.from)}</span> <b>${esc(pair.abbr[0])} ${pair.record[ak]}–${pair.record[bk]} ${esc(pair.abbr[1])}</b>` });
+    items.push({ team: null, html: `<span>Series since ${esc(state.history.h2hWindow.from)}</span> <b>${esc(pair.abbr[0])} ${pair.record[ak]}–${pair.record[bk]} ${esc(pair.abbr[1])}</b>` });
   }
 
   const html = items.map((it) => {

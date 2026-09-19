@@ -73,7 +73,7 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 
 .brand-mark {
   width: 10px; height: 30px; transform: skewX(-12deg);
-  background: linear-gradient(180deg, #2f7249 0%, #2f7249 33%, #a5acaf 33%, #a5acaf 66%, #0058f3 66%, #0058f3 100%);
+  background: linear-gradient(180deg, #1e7942 0%, #1e7942 33%, #a5acaf 33%, #a5acaf 66%, #0058f3 66%, #0058f3 100%);
   box-shadow: 0 0 20px rgba(0, 88, 243, .4);
 }
 
@@ -82,11 +82,13 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   text-transform: uppercase; letter-spacing: .01em; line-height: 1;
 }
 /* The name IS the three clubs, so it is set in the three clubs' colours —
-   the same drawn colours the rest of the page uses, not the raw primaries. */
+   the same drawn colours the rest of the page uses, not the raw primaries.
+   These three hexes are accent()'s current output for each club (see the
+   comment there) — kept in sync by hand since this is plain CSS, no JS. */
 .bn { font-weight: 700; }
-.bn-gb  { color: #3d8a5b; }
-.bn-lv  { color: #b9c0c4; }
-.bn-buf { color: #2f7bff; }
+.bn-gb  { color: #1e7942; }
+.bn-lv  { color: #a5acaf; }
+.bn-buf { color: #0058f3; }
 .brand-thin { font-weight: 500; color: var(--ink-2); }
 
 .season {
@@ -118,7 +120,13 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 }
 
 .ticker-track { display: flex; width: max-content; animation: scroll 58s linear infinite; }
-.ticker:hover .ticker-track { animation-play-state: paused; }
+/* Guarded to real pointer devices only. Touch has no hover to release — a
+   single tap on iOS/Android latches :hover on until something else is
+   tapped, which without this guard freezes the marquee for good, and
+   overflow: hidden above means there is nothing left to swipe either. */
+@media (hover: hover) {
+  .ticker:hover .ticker-track { animation-play-state: paused; }
+}
 
 .ticker-list {
   display: flex; align-items: center; gap: 2.4rem;
@@ -177,7 +185,7 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 /* The skewed tick is the page's one repeated motif — masthead, tags, panels. */
 .section-title::before {
   content: ""; width: 7px; height: .85em; transform: skewX(-12deg);
-  background: linear-gradient(180deg, #2f7249, #a5acaf 50%, #0058f3);
+  background: linear-gradient(180deg, #1e7942, #a5acaf 50%, #0058f3);
   flex: none;
 }
 
@@ -283,6 +291,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .rows-head .th-team { color: var(--ink); font-family: var(--display); font-weight: 700; font-size: 1.05rem; letter-spacing: .04em; }
 .rows-head .th-team::before { content: ""; width: 5px; height: 1em; transform: skewX(-12deg); background: var(--team); flex: none; }
 .th-logo { width: 20px; height: 20px; object-fit: contain; flex: none; }
+.th-lead { color: var(--ink-3); font-family: var(--body); font-weight: 400; font-size: .6rem; letter-spacing: .04em; text-transform: none; white-space: nowrap; }
+.th-lead.top { color: var(--team); font-weight: 700; }
 .th-gp { color: var(--ink-3); font-family: var(--body); font-weight: 400; font-size: .62rem; letter-spacing: .06em; margin-left: auto; }
 
 .row { display: grid; grid-template-columns: 13rem repeat(3, 1fr); border-top: 1px solid var(--line); }
@@ -306,9 +316,22 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .cell.lead::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--team); }
 
 .cell-top { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.cell-val { display: inline-flex; align-items: center; gap: .35rem; }
 .bar-val { font-family: var(--display); font-weight: 600; font-size: 1.45rem; line-height: 1; }
 .cell.lead .bar-val { color: var(--team); font-weight: 700; }
 .cell.empty .bar-val { color: var(--ink-3); }
+
+/* The explicit "who's first among these three" mark — the colour flood on
+   .cell.lead carries the same fact, but a reader skimming a dense table
+   asked for it spelled out, not just implied by a tinted background. */
+.rank-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15em; height: 1.15em; border-radius: 50%; flex: none;
+  font-family: var(--body); font-size: .66rem; font-weight: 700; line-height: 1;
+  color: var(--ink-3); border: 1px solid var(--line-2);
+  vertical-align: middle;
+}
+.rank-num.lead { background: var(--team, #4b8dff); color: var(--team-ink, #0a0c10); border-color: transparent; }
 
 .rank { font-size: .62rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
 
@@ -372,6 +395,10 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .qb-team-logo { width: 16px; height: 16px; object-fit: contain; }
 .qb-line { color: var(--ink-2); font-size: .76rem; margin-top: .3rem; font-variant-numeric: tabular-nums; }
 
+.qb-rating { position: absolute; top: .75rem; right: .9rem; text-align: right; }
+.qb-rating .v { display: block; font-family: var(--display); font-weight: 700; font-size: 1.3rem; line-height: 1; color: var(--team); }
+.qb-rating .k { display: block; color: var(--ink-3); font-size: .56rem; text-transform: uppercase; letter-spacing: .1em; margin-top: .15rem; }
+
 /* --------------------------------------------------------------- history */
 
 .history { display: grid; gap: .8rem; }
@@ -392,6 +419,7 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .season-col.winning .sb { opacity: 1; }
 .season-col .sy { font-size: .56rem; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .season-col .sr { font-size: .58rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.sr-best { color: var(--team); }
 .season-col.none .sb { background: var(--line-2); opacity: 1; }
 .seasons:hover .season-col .sb { opacity: .28; }
 .seasons .season-col:hover .sb { opacity: 1; }
@@ -413,6 +441,10 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   .row-label { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--line); padding: .45rem .85rem; }
   .rows-head .th-label { display: none; }
   .th-gp { margin-left: .3rem; }
+  /* "Leading in N" doesn't fit beside the abbreviation once the column is a
+     third of a phone screen — it wraps onto its own line instead. */
+  .th-team { flex-wrap: wrap; row-gap: .15rem; }
+  .th-lead { flex: 1 0 100%; order: 5; }
   .seasons { height: 62px; }
   .season-col .sr { display: none; }
   .bar-val { font-size: 1.25rem; }

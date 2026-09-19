@@ -1,13 +1,23 @@
 // /api/history — the head-to-head series and season-by-season form.
 //
-// Split out from /api/stats deliberately. This reads ten seasons of schedules
-// for three clubs, which is thirty upstream calls; the current-season numbers
-// should not wait behind it. The page renders the live stats first and fills
-// this in when it arrives.
+// Split out from /api/stats deliberately. This reads twenty-plus seasons of
+// schedules for three clubs, which is a lot of upstream calls; the
+// current-season numbers should not wait behind it. The page renders the
+// live stats first and fills this in when it arrives.
 
 import { TEAMS, SITE, getJson, normaliseEvent, seriesRecord, isTeam, canonicalKey } from './_lib/espn.mjs';
 
+// The season-form chart ("the last twenty seasons") is deliberately capped —
+// its own heading says twenty, and its columns are one-per-season, so more
+// years would just squeeze it illegible.
 const SEASONS = 20;
+// Head-to-head goes back further: to 1970, the AFL–NFL merger. Before that
+// the Packers (NFL since 1919) and the Raiders/Bills (AFL since 1960) were
+// in separate leagues that did not play each other outside exhibitions, so
+// 1970 is not an arbitrary cutoff — it is the first season a meeting between
+// these three clubs could exist as a counted game. That makes this genuinely
+// "all time" for this trio, not just "further back".
+const H2H_FROM_YEAR = 1970;
 const TTL_MS = 6 * 60 * 60 * 1000; // six hours; a completed season never changes
 let cache = { at: 0, payload: null };
 
@@ -38,11 +48,20 @@ function respond(payload, cacheState) {
 async function build() {
   const thisYear = seasonYear();
   const years = Array.from({ length: SEASONS }, (_, i) => thisYear - i).reverse();
+  // Everything older than the season-form window, back to the merger — only
+  // fetched to widen the head-to-head pool, never shown as its own chart.
+  const olderYears = Array.from(
+    { length: Math.max(0, years[0] - H2H_FROM_YEAR) },
+    (_, i) => H2H_FROM_YEAR + i,
+  );
 
   const jobs = [];
-  for (const t of TEAMS) for (const year of years) jobs.push({ team: t, year });
+  for (const t of TEAMS) for (const year of [...olderYears, ...years]) jobs.push({ team: t, year });
 
-  const results = await mapWithLimit(jobs, 6, async ({ team, year }) => {
+  // More years means more upstream calls than the recent-only window used
+  // to need; a higher ceiling keeps the wall-clock roughly where it was
+  // rather than growing with the job count.
+  const results = await mapWithLimit(jobs, 16, async ({ team, year }) => {
     const data = await getJson(`${SITE}/teams/${team.id}/schedule?season=${year}`).catch(() => null);
     const games = (data?.events || []).map((e) => normaliseEvent(e, year)).filter(Boolean);
     return { team, year, games };
@@ -59,7 +78,11 @@ async function build() {
 
   return {
     generated: new Date().toISOString(),
-    window: { from: years[0], to: years[years.length - 1], seasons: SEASONS },
+    // Kept separate on purpose: the season-form chart is always these
+    // twenty years, head-to-head is everything back to the merger. A reader
+    // who saw "1970–2026" over a twenty-bar chart would rightly not trust it.
+    seasonWindow: { from: years[0], to: years[years.length - 1], seasons: SEASONS },
+    h2hWindow: { from: H2H_FROM_YEAR, to: years[years.length - 1] },
     seasons: seasonForm(results, years),
     h2h: pairs().map(([a, b]) => head2head(all, a, b)),
   };

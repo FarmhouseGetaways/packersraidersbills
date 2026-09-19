@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/site.css?v=10e03257">
+<link rel="stylesheet" href="css/site.css?v=cc26dd88">
 </head>
 <body>
 
@@ -54,6 +54,9 @@
   <p class="status" id="status" role="status">Loading live statistics…</p>
 
   <section class="scoreboard-wrap" id="teams-section" hidden>
+    <div class="section-head">
+      <h2 class="section-title">This season</h2>
+    </div>
     <div class="teams" id="teams"></div>
   </section>
 
@@ -68,7 +71,7 @@
   <section class="section" id="cats-section" hidden>
     <div class="section-head">
       <h2 class="section-title">The numbers</h2>
-      <p class="section-note">Every category opens and closes. Each bar is drawn against the highest of the three, so on a fewer-is-better row the leader has the shortest bar; the figure beside it is that team's rank in the league.</p>
+      <p class="section-note">Key: <span class="rank-num lead">1</span> is the best of the three clubs in that row. The small number by each value is that club's rank across the whole NFL.</p>
     </div>
     <div id="categories"></div>
   </section>
@@ -97,6 +100,6 @@
   <p class="foot-meta" id="foot-meta"></p>
 </footer>
 
-<script src="js/app.js?v=1c2d53ad" defer></script>
+<script src="js/app.js?v=c44d35e1" defer></script>
 </body>
 </html>
