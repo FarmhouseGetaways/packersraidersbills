@@ -243,6 +243,13 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .ticker-tag img { width: 15px; height: 15px; object-fit: contain; }
 
 .ticker-list b { color: var(--ink); font-weight: 600; }
+
+/* A game in scores mode: logo + abbreviation (+ score once it's started)
+   for each side, so each logo sits right beside the team it belongs to. */
+.ticker-match { display: inline-flex; align-items: center; gap: .55rem; }
+.ticker-side { display: inline-flex; align-items: center; gap: .3rem; color: var(--ink); font-weight: 600; }
+.ticker-logo { width: 18px; height: 18px; object-fit: contain; flex: none; }
+.ticker-sep { color: var(--ink-3); font-weight: 400; }
 .ticker-live {
   font-family: var(--display); font-weight: 700; letter-spacing: .08em;
   background: #d81f2a; color: #fff; padding: .12rem .45rem;

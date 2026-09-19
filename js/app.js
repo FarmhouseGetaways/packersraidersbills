@@ -742,15 +742,29 @@ function buildStatsTickerItems(d) {
  * "Final") — ESPN's own text, not reformatted here.
  */
 function buildScoreTickerItems(games) {
+  // One of our three clubs' own logo where we have it (so a rebrand
+  // follows without a commit, same as everywhere else on the page); for
+  // an opponent we don't track, ESPN's own logo CDN by abbreviation —
+  // the abbreviations in d.live come from ESPN's scoreboard, so they are
+  // the CDN's own file names (all 32 verified). Same dark-background
+  // variant the tracked clubs already use.
+  const ours = Object.fromEntries((state.stats?.teams || []).map((t) => [t.abbr, t.logo]));
+  const logoSrc = (abbr) => ours[abbr]
+    || (abbr ? `https://a.espncdn.com/i/teamlogos/nfl/500-dark/${String(abbr).toLowerCase()}.png` : null);
+  const side = (t, withScore) => {
+    const src = logoSrc(t?.abbr);
+    return `<span class="ticker-side">${src ? `<img class="ticker-logo" src="${esc(src)}" alt="" width="18" height="18">` : ''}${esc(t?.abbr ?? '?')}${withScore ? ` <b>${esc(t?.score ?? 0)}</b>` : ''}</span>`;
+  };
+
   return (games || []).map((g) => {
     const away = g.teams?.find((t) => !t.home);
     const home = g.teams?.find((t) => t.home);
     const started = g.state !== 'pre';
-    const score = started && away && home
-      ? `${away.abbr} ${away.score ?? 0} – ${home.abbr} ${home.score ?? 0}`
-      : (g.name || `${away?.abbr ?? '?'} @ ${home?.abbr ?? '?'}`);
+    const matchup = started
+      ? `${side(away, true)}<span class="ticker-sep">–</span>${side(home, true)}`
+      : `${side(away, false)}<span class="ticker-sep">@</span>${side(home, false)}`;
     const tag = g.state === 'in' ? '<span class="ticker-live">LIVE</span> ' : '';
-    return { team: null, html: `${tag}<b>${esc(score)}</b> <span>${esc(g.detail || '')}</span>` };
+    return { team: null, html: `${tag}<span class="ticker-match">${matchup}</span> <span>${esc(g.detail || '')}</span>` };
   });
 }
 
