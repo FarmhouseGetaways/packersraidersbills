@@ -6,9 +6,13 @@ in its own colours, a scrolling ticker across the top, and the rest of the page
 broken into sections: offence, defence, quarterbacks, head-to-head and twenty
 seasons of history.
 
+**Live at https://packersraidersbills.netlify.app** — Netlify builds `main`
+automatically on push. `packersraidersbills.com` is registered but not yet
+attached; `HANDOVER.md` has that job and everything else a new session needs.
+
 **The page is branded PackersRaidersBills** — that is the title, the masthead
 (each club's word in its own drawn colour) and the favicon. The repository name
-is separate and may differ; nothing in the code reads it.
+is separate; nothing in the code reads it.
 
 Hand-written HTML, one CSS file, one JavaScript file, two Netlify functions. No
 build step, no dependencies, no npm.
@@ -198,11 +202,9 @@ once, on another site. The repo is the source of truth.
 
 ## Still outstanding
 
-- **The Netlify site.** Not connected yet — point a new site at this repo, root
-  base directory, `main` as production. No environment variables are needed:
-  ESPN's public API takes no key.
-- **A sitemap**, once the live URL is known. `robots.txt` already allows
-  everything.
+- **The domain.** `packersraidersbills.com` is registered (at directnic.com)
+  and not yet attached. This is the only thing standing between the site and
+  its real address — see `HANDOVER.md` for the steps and what to verify.
 - **More statistics.** Adding one is a line in the right category in
   `netlify/functions/_lib/metrics.mjs` — a label, the ESPN category and stat
   name, and which direction is better. Nothing else needs touching; the API and
