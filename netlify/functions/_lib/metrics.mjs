@@ -31,7 +31,9 @@ export const CATEGORIES = [
     key: 'scoring',
     title: 'Scoring & drives',
     note: 'Points, and how efficiently each club turns possession into them.',
-    open: true,
+    // Every category starts shut, on purpose. No category is the one everybody
+    // wants, and a page that opens as a wall of 103 rows is harder to scan
+    // than a list of seven headings. What the reader opens is remembered.
     metrics: [
       // Points conceded comes off the RECORD, not the defensive category:
       // ESPN serves defensive.pointsAllowed and yardsAllowed as 0 all season,
@@ -54,7 +56,6 @@ export const CATEGORIES = [
     key: 'passing',
     title: 'Passing',
     note: 'Net figures are after sack yardage; gross is before it.',
-    open: true,
     metrics: [
       m('passYpg', 'Passing yards per game (net)', 'passing', 'netPassingYardsPerGame', 'high'),
       m('passYds', 'Passing yards (net)', 'passing', 'netPassingYards', 'high', { count: true }),

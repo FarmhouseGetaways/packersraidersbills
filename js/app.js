@@ -211,7 +211,7 @@ function drawStats() {
   drawCategories(d.comparison.categories, d.teams);
   drawQbs(d.teams);
   drawCategory($('qb-cat'), {
-    key: 'qb', title: 'Quarterback comparison', note: null, open: true,
+    key: 'qb', title: 'Quarterback comparison', note: null, open: false,
     rows: d.comparison.qb,
   }, d.teams);
   drawTicker();
