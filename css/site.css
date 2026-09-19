@@ -237,6 +237,17 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   object-fit: contain; opacity: .09; z-index: -1; pointer-events: none;
 }
 
+/* Standing among just these three clubs — win percentage, point
+   differential to break a tie. The panels themselves stay in the page's
+   fixed order (see the comment in drawTeams); this is what says who's
+   actually ahead without reshuffling the layout every week. */
+.team-rank {
+  position: absolute; top: 1rem; right: 1.1rem;
+  font-family: var(--display); font-weight: 700; font-size: 1.5rem;
+  letter-spacing: .01em; color: var(--team);
+  text-shadow: 0 0 20px color-mix(in srgb, var(--team) 45%, transparent);
+}
+
 .team-abbr {
   font-family: var(--display); font-weight: 700;
   font-size: clamp(2.6rem, 7vw, 3.6rem); line-height: .85;

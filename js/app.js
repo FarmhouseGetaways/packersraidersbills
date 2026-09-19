@@ -301,6 +301,34 @@ function buildCategory(cat, teams) {
   return det;
 }
 
+/** Win percentage, ties counting as half a win — the standard sort key for
+ *  "current record" that's fair when the three clubs have played a
+ *  different number of games. No games played sorts last, not first. */
+function winPct(r) {
+  const w = r?.wins ?? 0, l = r?.losses ?? 0, ties = r?.ties ?? 0;
+  const gp = w + l + ties;
+  return gp ? (w + ties * 0.5) / gp : -1;
+}
+
+/** Best-of-these-three-clubs standing: win percentage first, point
+ *  differential to break a tie (two clubs can easily share a percentage
+ *  this early in a season; their differential is what the record doesn't
+ *  show but the eye would reach for next). */
+function standingsCompare(a, b) {
+  const pct = winPct(b.record) - winPct(a.record);
+  if (pct) return pct;
+  return (b.record?.differential ?? -Infinity) - (a.record?.differential ?? -Infinity);
+}
+
+function standingsRank(teams) {
+  const sorted = [...teams].sort(standingsCompare);
+  const ranks = {};
+  sorted.forEach((t, i) => {
+    ranks[t.key] = i > 0 && standingsCompare(t, sorted[i - 1]) === 0 ? ranks[sorted[i - 1].key] : i + 1;
+  });
+  return ranks;
+}
+
 function drawTeams(teams) {
   const wrap = $('teams');
   wrap.textContent = '';
@@ -310,6 +338,10 @@ function drawTeams(teams) {
   const pfRank = rankAmong(teams, (t) => t.record?.pointsForPerGame, false);
   const paRank = rankAmong(teams, (t) => t.record?.pointsAgainstPerGame, true);
   const diffRank = rankAmong(teams, (t) => t.record?.differential, false);
+  // The panels stay in the page's fixed club order — same as the ticker,
+  // the comparison tables, history — rather than reshuffling by standing
+  // every week; the rank badge says who's ahead without moving anyone.
+  const stRank = standingsRank(teams);
 
   for (const t of teams) {
     const r = t.record || {};
@@ -317,6 +349,7 @@ function drawTeams(teams) {
     card.className = 'team-card';
     card.innerHTML = `
       ${t.logo ? `<img class="team-watermark" src="${esc(t.logo)}" alt="" width="150" height="150" loading="lazy">` : ''}
+      ${stRank[t.key] ? `<div class="team-rank">#${stRank[t.key]}</div>` : ''}
       <div class="team-top">
         ${t.logo ? `<img class="team-logo" src="${esc(t.logo)}" alt="" width="42" height="42" loading="lazy">` : ''}
         <div>
