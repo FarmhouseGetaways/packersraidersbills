@@ -60,6 +60,27 @@ async function boot() {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') loadStats();
   });
+  wakeTicker();
+}
+
+/**
+ * iOS Safari's pull-to-refresh gesture (and any other restore from the
+ * back-forward cache) can leave the ticker's CSS animation stuck paused on
+ * its last frame — the stylesheet still says `infinite`, but the compositor
+ * thread doesn't always resume ticking on its own. `pageshow` fires on a
+ * normal load too, so this is a no-op then and only actually does anything
+ * on a bfcache restore. Removing and re-adding the animation, with a forced
+ * reflow between, is the standard way to make a CSS animation actually
+ * restart rather than just re-declare itself.
+ */
+function wakeTicker() {
+  window.addEventListener('pageshow', () => {
+    const track = $('ticker-track');
+    if (!track) return;
+    track.style.animation = 'none';
+    void track.offsetHeight; // force reflow between removing and restoring
+    track.style.animation = '';
+  });
 }
 
 async function loadStats() {

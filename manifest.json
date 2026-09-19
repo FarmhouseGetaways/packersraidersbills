@@ -1,0 +1,13 @@
+{
+  "name": "PackersRaidersBills",
+  "short_name": "PRB",
+  "description": "Live statistical comparison of the Green Bay Packers, Las Vegas Raiders and Buffalo Bills.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07090d",
+  "theme_color": "#07090d",
+  "icons": [
+    { "src": "/images/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/images/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
