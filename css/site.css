@@ -117,21 +117,27 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   100% { box-shadow: 0 0 0 0 rgba(53, 208, 127, 0); }
 }
 
-/* Labelled with the mode a click switches TO, never the current one — see
-   updateTickerToggle() in app.js. Hidden by default; JS only reveals it
-   once there's a second mode actually worth switching to. */
+/* A two-way segmented control, not a single button, so which mode the
+   ticker is in is always visible, not just what a click would do — see
+   updateTickerToggle() in app.js, which sets aria-pressed on whichever
+   button matches. Hidden by default; JS only reveals it once there's a
+   second mode actually worth switching to. */
 .ticker-toggle {
-  appearance: none; cursor: pointer; flex: none;
-  background: transparent; border: 1px solid var(--line-2); color: var(--ink-2);
+  display: flex; flex: none;
+  border: 1px solid var(--line-2); border-radius: 999px; padding: 2px;
+}
+.ticker-toggle button {
+  appearance: none; cursor: pointer; border: 0; background: transparent; color: var(--ink-3);
   font-family: var(--body); font-size: .68rem; font-weight: 600;
   text-transform: uppercase; letter-spacing: .08em;
-  padding: .32rem .75rem; border-radius: 999px;
-  transition: border-color .15s ease, color .15s ease;
+  padding: .28rem .7rem; border-radius: 999px;
+  transition: background-color .15s ease, color .15s ease;
 }
+.ticker-toggle button[aria-pressed="true"] { background: var(--ink); color: #0a0c10; }
 @media (hover: hover) {
-  .ticker-toggle:hover { border-color: var(--ink-2); color: var(--ink); }
+  .ticker-toggle button:not([aria-pressed="true"]):hover { color: var(--ink); }
 }
-.ticker-toggle:focus-visible { outline: 2px solid #4b8dff; outline-offset: 2px; }
+.ticker-toggle button:focus-visible { outline: 2px solid #4b8dff; outline-offset: 2px; }
 
 /* ------------------------------------------------------------- livescores */
 
@@ -476,6 +482,23 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .meetings { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .meetings li { display: flex; align-items: center; gap: .5rem; padding: .35rem 0; border-bottom: 1px solid var(--line); font-size: .78rem; color: var(--ink-2); }
 .meetings li:last-child { border-bottom: 0; }
+/* Collapsed by default — only the five most recent meetings show until the
+   button below reveals the rest of the series. */
+.meetings .meeting-extra { display: none; }
+.meetings.expanded .meeting-extra { display: flex; }
+
+.meetings-more {
+  appearance: none; cursor: pointer; width: 100%;
+  background: transparent; border: 0; border-top: 1px dashed var(--line-2);
+  color: var(--ink-3); font-family: var(--body); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .07em;
+  padding: .5rem 0 0; margin-top: .1rem;
+  transition: color .15s ease;
+}
+@media (hover: hover) {
+  .meetings-more:hover { color: var(--ink); }
+}
+.meetings-more:focus-visible { outline: 2px solid #4b8dff; outline-offset: 2px; }
 .meetings .yr { color: var(--ink-3); font-size: .68rem; width: 2.4rem; flex: none; font-variant-numeric: tabular-nums; }
 .meetings .res { margin-left: auto; font-family: var(--display); font-weight: 700; font-size: .78rem; letter-spacing: .05em; padding: .05rem .4rem; transform: skewX(-12deg); }
 .meetings .res > span { display: inline-flex; align-items: center; gap: .25rem; transform: skewX(12deg); }

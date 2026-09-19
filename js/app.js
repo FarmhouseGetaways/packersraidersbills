@@ -73,32 +73,62 @@ async function boot() {
     if (document.visibilityState === 'visible') loadStats();
   });
   wakeTicker();
-  $('ticker-toggle').addEventListener('click', () => {
-    // "Always flips to the opposite of current" — a plain binary swap, not
-    // re-derived from the day. See the comment on `tickerMode` above.
-    tickerMode = tickerMode === 'scores' ? 'stats' : 'scores';
+  $('ticker-toggle').addEventListener('click', (e) => {
+    const mode = e.target.closest('button')?.dataset.mode;
+    if (!mode || mode === tickerMode) return;
+    tickerMode = mode;
     drawTicker();
+  });
+  // Delegated once, here, rather than per-card in drawHistory() — that
+  // runs once per page load today, but a listener attached there would
+  // silently stack a duplicate on every call if that ever changed.
+  $('h2h').addEventListener('click', (e) => {
+    const btn = e.target.closest('.meetings-more');
+    if (!btn) return;
+    const list = btn.previousElementSibling;
+    const expanded = list.classList.toggle('expanded');
+    const hiddenCount = list.querySelectorAll('.meeting-extra').length;
+    btn.textContent = expanded ? 'Show fewer' : `Show ${hiddenCount} more`;
   });
 }
 
+const TICKER_PX_PER_SEC = 55;
+const TICKER_MIN_DURATION_S = 14;
+const TICKER_MAX_DURATION_S = 90;
+
 /**
- * iOS Safari's pull-to-refresh gesture (and any other restore from the
- * back-forward cache) can leave the ticker's CSS animation stuck paused on
- * its last frame — the stylesheet still says `infinite`, but the compositor
- * thread doesn't always resume ticking on its own. `pageshow` fires on a
- * normal load too, so this is a no-op then and only actually does anything
- * on a bfcache restore. Removing and re-adding the animation, with a forced
- * reflow between, is the standard way to make a CSS animation actually
- * restart rather than just re-declare itself.
+ * Restarts .ticker-track's scroll animation, timed to the CURRENT
+ * content's width rather than a fixed duration. A fixed 58s meant a short
+ * list (three games, in scores mode) crawled at the pace tuned for the
+ * much longer stats list — which read as both "too slow" and "a long
+ * pause at the loop seam": the seam itself is only ever a few fixed
+ * pixels, but at that reduced effective speed it took many extra seconds
+ * to cross, reading as a stall between the last item and the repeat.
+ *
+ * Removing and re-adding the animation (rather than only changing
+ * animation-duration in place) is also what fixes a second, separate
+ * ticker bug: WebKit can keep a compositor layer "animating" without
+ * actually repainting it after the content underneath changes — which
+ * read as the ticker going blank after a couple of toggle clicks, or
+ * stuck paused after an iOS pull-to-refresh restores the page from the
+ * back-forward cache. A genuine restart forces a fresh layer built from
+ * whatever is in the DOM right now, not a stale one.
  */
+function retimeAndRestartTicker() {
+  const track = $('ticker-track');
+  const list = $('ticker-list');
+  if (!track || !list) return;
+  const duration = Math.min(
+    TICKER_MAX_DURATION_S,
+    Math.max(TICKER_MIN_DURATION_S, list.scrollWidth / TICKER_PX_PER_SEC),
+  );
+  track.style.animation = 'none';
+  void track.offsetHeight; // force reflow between removing and restoring
+  track.style.animation = `scroll ${duration}s linear infinite`;
+}
+
 function wakeTicker() {
-  window.addEventListener('pageshow', () => {
-    const track = $('ticker-track');
-    if (!track) return;
-    track.style.animation = 'none';
-    void track.offsetHeight; // force reflow between removing and restoring
-    track.style.animation = '';
-  });
+  window.addEventListener('pageshow', retimeAndRestartTicker);
 }
 
 async function loadStats() {
@@ -568,8 +598,10 @@ function drawHistory() {
       </div>
       <p class="h2h-meta">${pair.record.played} meeting${pair.record.played === 1 ? '' : 's'} since ${h.h2hWindow.from}${pair.record.ties ? `, ${pair.record.ties} tied` : ''}</p>
       <ul class="meetings">
-        ${pair.games.slice(0, 6).map((g) => meetingRow(g, byKey)).join('')}
+        ${pair.games.slice(0, 5).map((g) => meetingRow(g, byKey)).join('')}
+        ${pair.games.slice(5).map((g) => meetingRow(g, byKey, true)).join('')}
       </ul>
+      ${pair.games.length > 5 ? `<button class="meetings-more" type="button">Show ${pair.games.length - 5} more</button>` : ''}
     `;
     wrap.appendChild(card);
   }
@@ -579,13 +611,14 @@ function drawHistory() {
   drawTicker();
 }
 
-function meetingRow(g, byKey) {
+function meetingRow(g, byKey, extra = false) {
+  const cls = extra ? ' class="meeting-extra"' : '';
   if (!g.completed) {
-    return `<li><span class="yr">${esc(g.season)}</span><span>${esc(g.away)} @ ${esc(g.home)}</span><span class="sched">${esc(shortDate(g.date)) || 'scheduled'}</span></li>`;
+    return `<li${cls}><span class="yr">${esc(g.season)}</span><span>${esc(g.away)} @ ${esc(g.home)}</span><span class="sched">${esc(shortDate(g.date)) || 'scheduled'}</span></li>`;
   }
   const winner = Object.values(byKey).find((t) => (t.abbrs || [t.abbr]).includes(g.winner));
   const col = winner ? accent(winner) : '#3a4553';
-  return `<li>
+  return `<li${cls}>
     <span class="yr">${esc(g.season)}</span>
     <span>${esc(g.away)} ${esc(g.awayScore)} @ ${esc(g.home)} ${esc(g.homeScore)}</span>
     <span class="res" style="background:${esc(col)};color:${esc(inkOn(col))}"><span>${winner?.logo ? `<img src="${esc(winner.logo)}" alt="" width="13" height="13" loading="lazy">` : ''}${esc(g.winner || 'TIE')}</span></span>
@@ -742,17 +775,21 @@ function drawTicker() {
   // only there so the loop has no gap — see the comment in index.html.
   $('ticker-list').innerHTML = html;
   $('ticker-list-copy').innerHTML = html;
+  retimeAndRestartTicker();
 }
 
 /** Shows the toggle only when there's a second mode worth switching to, and
- *  always labels it with the mode a click would switch TO — so the button
- *  never has to be read against the content to know what it does. */
+ *  marks whichever of its two buttons matches the ticker's current mode —
+ *  aria-pressed, not a class alone, so the state is announced as well as
+ *  drawn. */
 function updateTickerToggle(games) {
-  const btn = $('ticker-toggle');
+  const group = $('ticker-toggle');
   const hasGames = (games || []).length > 0;
-  btn.hidden = !hasGames;
+  group.hidden = !hasGames;
   if (!hasGames) return;
-  btn.textContent = tickerMode === 'scores' ? 'Stats' : 'Scores';
+  for (const btn of group.querySelectorAll('button')) {
+    btn.setAttribute('aria-pressed', String(btn.dataset.mode === tickerMode));
+  }
 }
 
 /* ------------------------------------------------------- draw: live scores */
