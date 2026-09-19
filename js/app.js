@@ -330,8 +330,8 @@ function drawTeams(teams) {
         <span class="record-label">record</span>
       </div>
       <div class="team-grid">
-        ${kv('Points for / game', num(r.pointsForPerGame, 1), rankBadge(pfRank[t.key]))}
-        ${kv('Points against / game', num(r.pointsAgainstPerGame, 1), rankBadge(paRank[t.key]))}
+        ${kv('Points scored / game', num(r.pointsForPerGame, 1), rankBadge(pfRank[t.key]))}
+        ${kv('Points allowed / game', num(r.pointsAgainstPerGame, 1), rankBadge(paRank[t.key]))}
         ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, rankBadge(diffRank[t.key]))}
         ${kv('Games played', statOf(t, 'general', 'gamesPlayed'))}
       </div>

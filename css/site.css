@@ -60,6 +60,14 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   background: rgba(5, 7, 10, .88);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
+  /* A sticky element with backdrop-filter sitting directly above masked,
+     animated content is a known iOS Safari paint bug: WebKit sometimes
+     fails to composite what's underneath on first load, and it stays
+     invisible until a scroll forces a recompute. Promoting this to its own
+     GPU layer up front (rather than letting Safari decide lazily) is the
+     standard fix — it stops the ticker below from needing a scroll to
+     appear at all. */
+  transform: translateZ(0);
 }
 
 .masthead-inner {
@@ -119,7 +127,13 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
           mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
 }
 
-.ticker-track { display: flex; width: max-content; animation: scroll 58s linear infinite; }
+.ticker-track {
+  display: flex; width: max-content; animation: scroll 58s linear infinite;
+  /* Its own layer, promoted up front rather than left for Safari to decide
+     lazily — see the comment on .masthead above; this is the other half of
+     the same fix, on the element that's actually animating. */
+  transform: translateZ(0);
+}
 /* Guarded to real pointer devices only. Touch has no hover to release — a
    single tap on iOS/Android latches :hover on until something else is
    tapped, which without this guard freezes the marquee for good, and
@@ -152,9 +166,13 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 }
 
 @keyframes scroll {
-  from { transform: translateX(0); }
+  /* translateZ(0) here too, not just on the base rule: an animated
+     `transform` replaces the whole property for the animation's duration,
+     so the base rule's layer-promoting translateZ would otherwise vanish
+     the instant the animation starts. */
+  from { transform: translateX(0) translateZ(0); }
   /* Exactly half, because the list is present twice. Anything else jumps. */
-  to   { transform: translateX(-50%); }
+  to   { transform: translateX(-50%) translateZ(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
