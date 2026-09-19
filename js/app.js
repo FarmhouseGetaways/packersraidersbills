@@ -413,9 +413,9 @@ function drawTeams(teams) {
         <span class="record-label">record</span>
       </div>
       <div class="team-grid">
-        ${kv('Points scored / game', num(r.pointsForPerGame, 1), rankBadge(pfRank[t.key]))}
-        ${kv('Points allowed / game', num(r.pointsAgainstPerGame, 1), rankBadge(paRank[t.key]))}
-        ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, rankBadge(diffRank[t.key]))}
+        ${kv('Points scored / game', num(r.pointsForPerGame, 1), pfRank[t.key])}
+        ${kv('Points allowed / game', num(r.pointsAgainstPerGame, 1), paRank[t.key])}
+        ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, diffRank[t.key])}
         ${kv('Games played', statOf(t, 'general', 'gamesPlayed'))}
       </div>
       ${t.nextEvent ? `<p class="team-next">Next: <b>${esc(t.nextEvent.name || '')}</b> ${esc(shortDate(t.nextEvent.date))}</p>` : ''}
@@ -424,7 +424,7 @@ function drawTeams(teams) {
   }
 }
 
-const kv = (k, v, badge = '') => `<div class="kv"><span class="k">${esc(k)}</span><span class="v">${badge}${esc(v)}</span></div>`;
+const kv = (k, v, rank) => `<div class="kv${rank ? ' has-rank' : ''}"><span class="k">${esc(k)}</span>${amongTag(rank)}<span class="v">${esc(v)}</span></div>`;
 
 function num(v, dp = 0) {
   return Number.isFinite(v) ? v.toFixed(dp) : '—';
@@ -454,9 +454,9 @@ function rankAmong(teams, valueOf, lowerIsBetter) {
   return ranks;
 }
 
-/** Small "1st of these three" badge — same visual token wherever a rank
- *  among just the three clubs is shown, colour-filled only for the leader. */
-const rankBadge = (rank) => (rank ? `<span class="rank-num${rank === 1 ? ' lead' : ''}">${rank}</span> ` : '');
+/** "#2" — where a club stands among just these three on one measure, in the
+ *  upper right of whatever it sits in. Coloured (via CSS) only for #1. */
+const amongTag = (rank) => (rank ? `<b class="among${rank === 1 ? ' first' : ''}">#${rank}</b>` : '');
 
 /**
  * One comparison table.
@@ -523,11 +523,11 @@ function drawRows(wrap, rows, teams) {
         : 0;
       cell.innerHTML = `
         <div class="cell-top">
-          <span class="cell-val">
-            ${display != null && among[t.key] ? `<span class="rank-num${lead ? ' lead' : ''}">${among[t.key]}</span>` : ''}
-            <span class="bar-val">${display == null ? '—' : esc(display) + esc(row.suffix || '')}</span>
+          <span class="cell-val"><span class="bar-val">${display == null ? '—' : esc(display) + esc(row.suffix || '')}</span></span>
+          <span class="cell-side">
+            ${display != null ? amongTag(among[t.key]) : ''}
+            ${rank ? `<span class="rank">${esc(ordinal(rank))} in NFL</span>` : ''}
           </span>
-          ${rank ? `<span class="rank">${esc(ordinal(rank))} in NFL</span>` : ''}
         </div>
         <div class="bar"><i style="width:${width}%"></i></div>
       `;

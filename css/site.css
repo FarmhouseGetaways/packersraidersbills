@@ -365,7 +365,9 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 
 .team-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .9rem; }
 
-.kv { border-top: 1px solid var(--line); padding-top: .4rem; }
+.kv { position: relative; border-top: 1px solid var(--line); padding-top: .4rem; }
+.kv .among { position: absolute; top: .4rem; right: 0; }
+.kv.has-rank .k { padding-right: 1.8rem; }
 .kv .k { display: block; color: var(--ink-3); font-size: .62rem; text-transform: uppercase; letter-spacing: .1em; }
 .kv .v { font-family: var(--display); font-weight: 600; font-size: 1.3rem; line-height: 1.1; }
 
@@ -444,22 +446,21 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .cell.lead::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--team); }
 
 .cell-top { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
-.cell-val { display: inline-flex; align-items: center; gap: .35rem; }
+.cell-val { display: inline-flex; align-items: center; }
 .bar-val { font-family: var(--display); font-weight: 600; font-size: 1.45rem; line-height: 1; }
 .cell.lead .bar-val { color: var(--team); font-weight: 700; }
 .cell.empty .bar-val { color: var(--ink-3); }
 
-/* The explicit "who's first among these three" mark — the colour flood on
-   .cell.lead carries the same fact, but a reader skimming a dense table
-   asked for it spelled out, not just implied by a tinted background. */
-.rank-num {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 1.15em; height: 1.15em; border-radius: 50%; flex: none;
-  font-family: var(--body); font-size: .66rem; font-weight: 700; line-height: 1;
-  color: var(--ink-3); border: 1px solid var(--line-2);
-  vertical-align: middle;
+/* Where each club stands among just these three — "#1" in the upper right
+   of the cell. Only #1 is coloured (the club's own), so the leader still
+   reads at a glance; #2 and #3 stay quiet. */
+.among {
+  font-family: var(--display); font-weight: 700; font-size: 1.05rem; line-height: 1;
+  color: var(--ink-3); font-variant-numeric: tabular-nums;
 }
-.rank-num.lead { background: var(--team, #4b8dff); color: var(--team-ink, #0a0c10); border-color: transparent; }
+.among.first { color: var(--team); }
+.cell-side { display: flex; flex-direction: column; align-items: flex-end; gap: .2rem; }
+
 
 .rank { font-size: .62rem; color: var(--ink-3); text-transform: uppercase; letter-spacing: .05em; }
 
@@ -596,6 +597,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   /* Three cells across a phone leaves no room for the rank beside the value —
      "419.0" and "6th in NFL" ran together into "419.06th in NFL". */
   .cell-top { display: block; }
+  .cell-side { display: contents; }
+  .cell .among { position: absolute; top: .5rem; right: .7rem; }
   .rank { display: block; margin-top: .1rem; }
 }
 
