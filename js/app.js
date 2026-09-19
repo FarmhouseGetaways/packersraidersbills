@@ -773,24 +773,53 @@ function drawTicker() {
   if (!d) return;
 
   updateTickerToggle(d.live);
-  const items = tickerMode === 'scores' && (d.live || []).length
-    ? buildScoreTickerItems(d.live)
-    : buildStatsTickerItems(d);
+  const scores = tickerMode === 'scores' && (d.live || []).length > 0;
+  const items = scores ? buildScoreTickerItems(d.live) : buildStatsTickerItems(d);
+  $('ticker-track').dataset.mode = scores ? 'scores' : 'stats';
 
-  const html = items.map((it) => {
+  // One full pass of the content. The last item of each pass is marked so
+  // the loop seam can be sized (see .pass-end in site.css).
+  const pass = items.map((it, i) => {
     const style = it.team ? ` style="--team:${esc(accent(it.team))};--team-ink:${esc(inkOn(accent(it.team)))}"` : '';
     const tag = it.team
       ? `<span class="ticker-tag"${style}><span>${it.team.logo ? `<img src="${esc(it.team.logo)}" alt="" width="15" height="15">` : ''}${esc(it.team.abbr)}</span></span>`
       : '';
-    return `<li>${tag}${it.html}</li>`;
+    return `<li${i === items.length - 1 ? ' class="pass-end"' : ''}>${tag}${it.html}</li>`;
   }).join('');
+
+  // The loop only works if one copy of the list is at least as wide as the
+  // visible ticker: the track slides left by exactly one copy's width, so
+  // anything narrower leaves blank space trailing behind the content until
+  // it snaps back — a short scores list (three games) is far narrower than
+  // a desktop screen. So repeat the pass until a copy fills the frame.
+  const list = $('ticker-list');
+  const frame = $('ticker-track').parentElement.clientWidth;
+  tickerFrameWidth = frame;
+  let html = pass;
+  list.innerHTML = html;
+  for (let n = 1; list.scrollWidth < frame && n < 16; n++) {
+    html += pass;
+    list.innerHTML = html;
+  }
 
   // Both copies always get the same markup. The second is aria-hidden and is
   // only there so the loop has no gap — see the comment in index.html.
-  $('ticker-list').innerHTML = html;
   $('ticker-list-copy').innerHTML = html;
   retimeAndRestartTicker();
 }
+
+// A rotation or window resize changes how much content it takes to fill the
+// frame. Only a change in WIDTH redraws: mobile browsers fire resize for
+// their collapsing address bar, which would otherwise restart the scroll
+// every time the reader nudged the page.
+let tickerFrameWidth = 0;
+window.addEventListener('resize', () => {
+  const w = $('ticker-track')?.parentElement.clientWidth || 0;
+  if (w === tickerFrameWidth) return;
+  tickerFrameWidth = w;
+  clearTimeout(drawTicker.resizeTimer);
+  drawTicker.resizeTimer = setTimeout(drawTicker, 250);
+});
 
 /** Shows the toggle only when there's a second mode worth switching to, and
  *  marks whichever of its two buttons matches the ticker's current mode —

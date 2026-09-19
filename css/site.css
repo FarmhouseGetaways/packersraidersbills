@@ -233,6 +233,15 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 
 .ticker-list li { display: flex; align-items: center; gap: .5rem; font-size: .82rem; color: var(--ink-2); }
 
+/* Scores mode rotates round: when the last game leaves on the left, the
+   first comes back in on the right after a ten-character gap. The list
+   repeats its content until one copy fills the frame (see drawTicker), so
+   the seam between passes inside a list is the flex gap + this margin, and
+   the seam between the two list copies is this margin + the list's own
+   right padding — both work out to 10ch. */
+.ticker-track[data-mode="scores"] .ticker-list { padding-right: 2.4rem; }
+.ticker-track[data-mode="scores"] li.pass-end { margin-right: max(0px, calc(10ch - 2.4rem)); }
+
 .ticker-tag {
   font-family: var(--display); font-weight: 700; font-size: .92rem;
   letter-spacing: .04em; text-transform: uppercase;
