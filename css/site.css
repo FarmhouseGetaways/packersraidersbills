@@ -117,15 +117,92 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   100% { box-shadow: 0 0 0 0 rgba(53, 208, 127, 0); }
 }
 
+/* Labelled with the mode a click switches TO, never the current one — see
+   updateTickerToggle() in app.js. Hidden by default; JS only reveals it
+   once there's a second mode actually worth switching to. */
+.ticker-toggle {
+  appearance: none; cursor: pointer; flex: none;
+  background: transparent; border: 1px solid var(--line-2); color: var(--ink-2);
+  font-family: var(--body); font-size: .68rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em;
+  padding: .32rem .75rem; border-radius: 999px;
+  transition: border-color .15s ease, color .15s ease;
+}
+@media (hover: hover) {
+  .ticker-toggle:hover { border-color: var(--ink-2); color: var(--ink); }
+}
+.ticker-toggle:focus-visible { outline: 2px solid #4b8dff; outline-offset: 2px; }
+
+/* ------------------------------------------------------------- livescores */
+
+.livescores {
+  border-bottom: 1px solid var(--line-2);
+  background: linear-gradient(180deg, #0d1119, #080b11);
+}
+.livescores-inner {
+  max-width: var(--max); margin: 0 auto; padding: .7rem var(--gutter);
+  display: flex; gap: .7rem; flex-wrap: wrap;
+}
+
+.live-card {
+  flex: 1 1 13rem; min-width: 11rem;
+  background: var(--panel); border: 1px solid var(--line);
+  border-left: 3px solid var(--team, var(--line-2));
+  padding: .5rem .8rem;
+}
+/* Final and upcoming read as quieter than live on purpose — live is the
+   one state worth a reader's eye jumping to. */
+.live-card.live-post { opacity: .82; }
+
+.live-status {
+  display: flex; align-items: center; gap: .35rem;
+  font-family: var(--body); font-size: .62rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3);
+}
+.live-card.live-in .live-status { color: #ff5a5a; }
+
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #ff3b3b; flex: none;
+  animation: pulse-live 1.6s infinite;
+}
+@keyframes pulse-live {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 59, 59, .5); }
+  70%  { box-shadow: 0 0 0 8px rgba(255, 59, 59, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 59, 0); }
+}
+
+.live-match {
+  display: flex; align-items: baseline; gap: .45rem; margin-top: .15rem;
+  font-family: var(--display); font-weight: 700; font-size: 1.25rem;
+  flex-wrap: wrap;
+}
+.live-side b { color: var(--team, var(--ink)); margin-left: .3rem; font-variant-numeric: tabular-nums; }
+.live-at { color: var(--ink-3); font-size: .75rem; font-weight: 400; }
+.live-detail { margin-top: .15rem; color: var(--ink-3); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 /* ------------------------------------------------------------------ ticker */
 
 .ticker {
+  position: relative;
   border-bottom: 1px solid var(--line-2);
   background: linear-gradient(180deg, #0c121b, #070b10);
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent);
 }
+/* The fade at each edge used to be a mask-image. mask-image is one of the
+   more fragile CSS features on iOS Safari across versions — when it fails
+   to resolve, it hides everything it's applied to, not just the fade,
+   which reads as exactly "the ticker is completely blank". Two ordinary
+   gradient overlays can't fail that way: worst case a fade doesn't show,
+   the content underneath always does. */
+.ticker::before, .ticker::after {
+  content: ""; position: absolute; top: 0; bottom: 0; width: 2.5rem; z-index: 2; pointer-events: none;
+}
+.ticker::before { left: 0; background: linear-gradient(90deg, #090d13, transparent); }
+.ticker::after { right: 0; background: linear-gradient(270deg, #080c11, transparent); }
 
 .ticker-track {
   display: flex; width: max-content; animation: scroll 58s linear infinite;

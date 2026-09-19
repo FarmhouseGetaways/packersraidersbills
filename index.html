@@ -34,7 +34,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/site.css?v=db7ecd7c">
+<link rel="stylesheet" href="css/site.css?v=25572118">
 </head>
 <body>
 
@@ -47,8 +47,20 @@
     <p class="season" id="season-line">
       <span class="dot" aria-hidden="true"></span><span id="season-text">Loading the season…</span>
     </p>
+    <!-- Hidden until a week with games to toggle to loads — see
+         updateTickerToggle() in app.js. Its own label is always the mode a
+         click switches TO, never the current one. -->
+    <button class="ticker-toggle" id="ticker-toggle" type="button" hidden></button>
   </div>
 </header>
+
+<!-- Shown only inside the active window for one of our own games — from an
+     hour before kickoff through the rest of that game's calendar day. Not
+     the ticker: this is a standing, non-scrolling strip, and only for our
+     three clubs' own games, never the whole week's slate. -->
+<section class="livescores" id="livescores-section" aria-label="Live scores" hidden>
+  <div class="livescores-inner" id="livescores"></div>
+</section>
 
 <!-- The ticker holds its list TWICE. The second copy is aria-hidden and
      exists only so the scroll loops with no gap. Any change to the content
@@ -112,6 +124,6 @@
   <p class="foot-meta" id="foot-meta"></p>
 </footer>
 
-<script src="js/app.js?v=4ba63204" defer></script>
+<script src="js/app.js?v=c8eff4e2" defer></script>
 </body>
 </html>

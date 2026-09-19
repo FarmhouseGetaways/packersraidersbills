@@ -169,6 +169,7 @@ function liveGames(scoreboard) {
     if (!cs.some((c) => ours.has(c.team?.abbreviation))) continue;
     out.push({
       name: ev.shortName ?? null,
+      date: ev.date ?? null,                          // kickoff, ISO — drives the ticker toggle's default and the live-scores window
       state: comp?.status?.type?.state ?? null,       // pre | in | post
       detail: comp?.status?.type?.shortDetail ?? null,
       teams: cs.map((c) => ({

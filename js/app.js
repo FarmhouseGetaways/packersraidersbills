@@ -8,6 +8,18 @@ const $ = (id) => document.getElementById(id);
 const state = { stats: null, history: null };
 
 /**
+ * 'stats' (the regular scrolling notes) or 'scores' (this week's games,
+ * date/time/score, for the whole slate — not just our three clubs). Starts
+ * null; the first stats load picks a default — 'scores' if today is a game
+ * day for any of the three clubs, 'stats' otherwise — and a click on the
+ * toggle overrides that for the rest of the session. Refreshing every 60s
+ * must never reset a reader's manual choice back to the day's default,
+ * which is why this only gets a value ONCE (`tickerMode === null` below),
+ * never re-derived on every redraw.
+ */
+let tickerMode = null;
+
+/**
  * Which statistic categories are open.
  *
  * This has to be remembered outside the DOM. The page redraws itself every 60
@@ -61,6 +73,12 @@ async function boot() {
     if (document.visibilityState === 'visible') loadStats();
   });
   wakeTicker();
+  $('ticker-toggle').addEventListener('click', () => {
+    // "Always flips to the opposite of current" — a plain binary swap, not
+    // re-derived from the day. See the comment on `tickerMode` above.
+    tickerMode = tickerMode === 'scores' ? 'stats' : 'scores';
+    drawTicker();
+  });
 }
 
 /**
@@ -244,6 +262,8 @@ function drawStats() {
     key: 'qb', title: 'Quarterback comparison', note: null, open: false,
     rows: d.comparison.qb,
   }, d.teams);
+  if (tickerMode === null) tickerMode = isGameDay(d.live) ? 'scores' : 'stats';
+  drawLiveScores(d);
   drawTicker();
 
   for (const id of ['teams-section', 'cats-section', 'qb-section']) $(id).hidden = false;
@@ -641,9 +661,20 @@ function drawSeasons(h, teams) {
 
 /* ------------------------------------------------------------ draw: ticker */
 
-function drawTicker() {
-  const d = state.stats;
-  if (!d) return;
+/** Local calendar day, not UTC — "today"/"this game day" means the reader's
+ *  own day, not the server's or ESPN's. */
+function isSameLocalDay(iso, ref = new Date()) {
+  if (!iso) return false;
+  const d = new Date(iso);
+  return !Number.isNaN(d.getTime()) && d.toDateString() === ref.toDateString();
+}
+
+/** Any of our three clubs playing today, by the reader's own clock. */
+function isGameDay(games) {
+  return (games || []).some((g) => isSameLocalDay(g.date));
+}
+
+function buildStatsTickerItems(d) {
   const items = [];
 
   for (const g of d.live || []) {
@@ -666,6 +697,39 @@ function drawTicker() {
     items.push({ team: null, html: `<span>Series since ${esc(state.history.h2hWindow.from)}</span> <b>${esc(pair.abbr[0])} ${pair.record[ak]}–${pair.record[bk]} ${esc(pair.abbr[1])}</b>` });
   }
 
+  return items;
+}
+
+/**
+ * This week's full slate for the three clubs — not just live ones, unlike
+ * the small in-progress note the stats ticker carries. One item per game,
+ * whatever its state: kickoff date/time if it hasn't started, the score and
+ * clock if it has, the final score once it's over. `g.detail` already reads
+ * as a finished sentence in every state ("9/20 - 1:00 PM EDT", "Q3 8:42",
+ * "Final") — ESPN's own text, not reformatted here.
+ */
+function buildScoreTickerItems(games) {
+  return (games || []).map((g) => {
+    const away = g.teams?.find((t) => !t.home);
+    const home = g.teams?.find((t) => t.home);
+    const started = g.state !== 'pre';
+    const score = started && away && home
+      ? `${away.abbr} ${away.score ?? 0} – ${home.abbr} ${home.score ?? 0}`
+      : (g.name || `${away?.abbr ?? '?'} @ ${home?.abbr ?? '?'}`);
+    const tag = g.state === 'in' ? '<span class="ticker-live">LIVE</span> ' : '';
+    return { team: null, html: `${tag}<b>${esc(score)}</b> <span>${esc(g.detail || '')}</span>` };
+  });
+}
+
+function drawTicker() {
+  const d = state.stats;
+  if (!d) return;
+
+  updateTickerToggle(d.live);
+  const items = tickerMode === 'scores' && (d.live || []).length
+    ? buildScoreTickerItems(d.live)
+    : buildStatsTickerItems(d);
+
   const html = items.map((it) => {
     const style = it.team ? ` style="--team:${esc(accent(it.team))};--team-ink:${esc(inkOn(accent(it.team)))}"` : '';
     const tag = it.team
@@ -678,4 +742,85 @@ function drawTicker() {
   // only there so the loop has no gap — see the comment in index.html.
   $('ticker-list').innerHTML = html;
   $('ticker-list-copy').innerHTML = html;
+}
+
+/** Shows the toggle only when there's a second mode worth switching to, and
+ *  always labels it with the mode a click would switch TO — so the button
+ *  never has to be read against the content to know what it does. */
+function updateTickerToggle(games) {
+  const btn = $('ticker-toggle');
+  const hasGames = (games || []).length > 0;
+  btn.hidden = !hasGames;
+  if (!hasGames) return;
+  btn.textContent = tickerMode === 'scores' ? 'Stats' : 'Scores';
+}
+
+/* ------------------------------------------------------- draw: live scores */
+
+/**
+ * Whether a game belongs in the standing live-scores strip right now: from
+ * an hour before kickoff, so a reader who opens the page early sees it's
+ * coming; through the whole game while it's in progress; and for the rest
+ * of that game's calendar day once it's final, so the result doesn't
+ * vanish the instant the clock hits zero. Gone again the next day.
+ */
+const LIVE_SCORE_PRE_WINDOW_MS = 60 * 60 * 1000;
+function isLiveScoreActive(g, now = new Date()) {
+  if (!g.date) return false;
+  if (g.state === 'in') return true;
+  if (g.state === 'post') return isSameLocalDay(g.date, now);
+  if (g.state === 'pre') return now.getTime() >= new Date(g.date).getTime() - LIVE_SCORE_PRE_WINDOW_MS;
+  return false;
+}
+
+/**
+ * The standing strip at the top of the page — separate from the ticker,
+ * and only ever our three clubs' own games (every game in d.live already
+ * is one, since the API only ever collects theirs). Zero, one, two or all
+ * three can show at once, one card per active game: if only the Bills
+ * played today, that's the only card; if all three kick off around the
+ * same time, all three show together.
+ */
+function drawLiveScores(d) {
+  const section = $('livescores-section');
+  const wrap = $('livescores');
+  const byKey = Object.fromEntries((d.teams || []).map((t) => [t.key, t]));
+  const active = (d.live || []).filter((g) => isLiveScoreActive(g));
+
+  if (!active.length) {
+    section.hidden = true;
+    wrap.textContent = '';
+    return;
+  }
+
+  wrap.textContent = '';
+  for (const g of active) {
+    const away = g.teams?.find((t) => !t.home);
+    const home = g.teams?.find((t) => t.home);
+    // Whichever side is one of ours drives the card's colour; if somehow
+    // both are (two of the three playing each other), home wins the tie
+    // for which accent is used — both scores show either way.
+    const byAbbr = (abbr) => Object.values(byKey).find((t) => t.abbr === abbr);
+    const oursTeam = byAbbr(home?.abbr) || byAbbr(away?.abbr);
+
+    const card = document.createElement('article');
+    card.className = `live-card live-${g.state || 'pre'}`;
+    card.innerHTML = `
+      <div class="live-status">
+        ${g.state === 'in' ? '<span class="live-dot" aria-hidden="true"></span> LIVE' : g.state === 'post' ? 'FINAL' : 'UPCOMING'}
+      </div>
+      <div class="live-match">
+        <span class="live-side">${away?.abbr ? esc(away.abbr) : '—'}${g.state !== 'pre' ? ` <b>${esc(away?.score ?? 0)}</b>` : ''}</span>
+        <span class="live-at">@</span>
+        <span class="live-side">${home?.abbr ? esc(home.abbr) : '—'}${g.state !== 'pre' ? ` <b>${esc(home?.score ?? 0)}</b>` : ''}</span>
+      </div>
+      <div class="live-detail">${esc(g.detail || '')}</div>
+    `;
+    if (oursTeam) {
+      card.style.setProperty('--team', accent(oursTeam));
+      card.style.setProperty('--team-ink', inkOn(accent(oursTeam)));
+    }
+    wrap.appendChild(card);
+  }
+  section.hidden = false;
 }

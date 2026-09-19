@@ -2,13 +2,15 @@
 
 A live statistical comparison of three NFL clubs — the **Green Bay Packers**,
 the **Las Vegas Raiders** and the **Buffalo Bills**. Dark page, each club drawn
-in its own colours, a scrolling ticker across the top, and the rest of the page
+in its own colours, a scrolling ticker across the top (toggles between the
+regular notes and this week's full slate of scores), a live-scores strip that
+appears only around our own three clubs' kickoffs, and the rest of the page
 broken into sections: offence, defence, quarterbacks, head-to-head and twenty
 seasons of history.
 
-**Live at https://packersraidersbills.netlify.app** — Netlify builds `main`
-automatically on push. `packersraidersbills.com` is registered but not yet
-attached; `HANDOVER.md` has that job and everything else a new session needs.
+**Live at both https://packersraidersbills.netlify.app and
+https://packersraidersbills.com** — Netlify builds `main` automatically on
+push.
 
 **The page is branded PackersRaidersBills** — that is the title, the masthead
 (each club's word in its own drawn colour) and the favicon. The repository name
@@ -21,6 +23,7 @@ build step, no dependencies, no npm.
 
 | Section | What it holds |
 |---|---|
+| Live scores strip | Only our three clubs' own games, only while it matters — from an hour before kickoff through the rest of that game's day. Hidden the rest of the time. |
 | Three club panels | Record, standing, points for and against, differential, next fixture |
 | Head to head | All three pairings, series record and every meeting since the 1970 AFL–NFL merger |
 | The numbers | **Seven collapsible categories, 89 statistics** — scoring & drives, passing, rushing, receiving, defence, turnovers & discipline, kicking/punting/returns |
