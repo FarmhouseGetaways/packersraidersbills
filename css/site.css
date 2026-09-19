@@ -585,6 +585,14 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
      label on its own line, three equal cells beneath it. */
   .row, .rows-head { grid-template-columns: repeat(3, 1fr); }
   .row-label { grid-column: 1 / -1; border-right: 0; border-bottom: 1px solid var(--line); padding: .45rem .85rem; }
+  /* The note chips ("season total", "fewer is better") sit to the right of
+     the title on the same line instead of stacked beneath it, which takes a
+     whole line out of every row. The title wraps within its own share if it
+     has to; the chips never do. */
+  .row-label { flex-wrap: nowrap; }
+  .row-label > span:first-child { flex: 1 1 0; }
+  .row-label > span:first-child + .row-hint { margin-left: auto; }
+  .row-hint { flex: none; }
   .rows-head .th-label { display: none; }
   .th-gp { margin-left: .3rem; }
   /* "Leading in N" doesn't fit beside the abbreviation once the column is a
