@@ -69,3 +69,18 @@
   to = "/404.html"
   status = 404
   force = true
+
+# Several mobile browsers probe this exact path directly for a home-screen/
+# bookmark icon regardless of what the <link rel="icon"> tags say, and treat
+# a 404 there as "no icon" even when a perfectly good one is declared
+# elsewhere. A rewrite (not a redirect) serves the real PNG's bytes AND its
+# real Content-Type at this URL — unlike copying the file to a literal
+# favicon.ico, which would serve PNG bytes under an image/vnd.microsoft.icon
+# label. That mismatch broke silently: X-Content-Type-Options: nosniff above
+# stops the browser from sniffing past a wrong declared type, so it tried to
+# parse PNG bytes as ICO, failed, and fell back to a placeholder icon.
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/images/icon-512-v2.png"
+  status = 200
+  force = true
