@@ -34,7 +34,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="css/site.css?v=ebfccae6">
+<link rel="stylesheet" href="css/site.css?v=ccaaaa3e">
 </head>
 <body>
 
@@ -87,6 +87,28 @@
     <div class="teams" id="teams"></div>
   </section>
 
+  <!-- Just our three clubs' own divisions, collapsed by default — see
+       buildDivisions() in stats.mjs and drawDivisions() in app.js. -->
+  <section class="section" id="standings-section" hidden>
+    <div class="section-head">
+      <h2 class="section-title">Division standings</h2>
+    </div>
+    <div id="standings"></div>
+  </section>
+
+  <!-- Collapsed by default, one club per group, only for clubs with a
+       listed player. ESPN's own roster feed is the source; NFL.com is the
+       league's own report and does not publish a public data feed a static
+       site can read, so it's linked here as the reference rather than
+       fetched. -->
+  <section class="section" id="injuries-section" hidden>
+    <div class="section-head">
+      <h2 class="section-title">Injury report</h2>
+      <p class="section-note">From ESPN. Official reports: <a href="https://www.nfl.com/injuries/" target="_blank" rel="noopener">nfl.com/injuries</a>.</p>
+    </div>
+    <div id="injuries"></div>
+  </section>
+
   <section class="section" id="h2h-section" hidden>
     <div class="section-head">
       <h2 class="section-title">Head to head</h2>
@@ -126,6 +148,6 @@
   <p class="foot-meta" id="foot-meta"></p>
 </footer>
 
-<script src="js/app.js?v=e53acb6b" defer></script>
+<script src="js/app.js?v=4fb556fa" defer></script>
 </body>
 </html>

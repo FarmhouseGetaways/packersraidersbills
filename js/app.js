@@ -269,6 +269,12 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+/** "2nd & 7" — down and distance, never a field position: see the note on
+ *  `down`/`distance` in stats.mjs for why yardLine isn't turned into one. */
+function downDistance(g) {
+  return `${ordinal(g.down)} & ${g.distance}`;
+}
+
 function shortDate(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -286,6 +292,8 @@ function drawStats() {
   $('season-line').querySelector('.dot').classList.toggle('stale', !!d.stale);
 
   drawTeams(d.teams);
+  drawDivisions(d.divisions);
+  drawInjuries(d.injuries, d.teams);
   drawCategories(d.comparison.categories, d.teams);
   drawQbs(d.teams);
   drawCategory($('qb-cat'), {
@@ -350,6 +358,98 @@ function buildCategory(cat, teams) {
   det.appendChild(body);
   return det;
 }
+
+/**
+ * One collapsible <details>, the same shape buildCategory builds, for
+ * content that isn't a stat category — division standings, the injury
+ * report. Pulled out once two more sections needed it, rather than three
+ * near-identical copies of the same summary/arrow/persistence wiring.
+ */
+function buildCollapsible(key, summaryHtml, bodyEl) {
+  const det = document.createElement('details');
+  det.className = 'cat';
+  det.open = startsOpen({ key, open: false });
+  det.addEventListener('toggle', () => {
+    openCats.set(key, det.open);
+    rememberOpen();
+  });
+
+  const sum = document.createElement('summary');
+  sum.innerHTML = `
+    <svg class="cat-arrow" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true">
+      <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    ${summaryHtml}`;
+  det.appendChild(sum);
+
+  const body = document.createElement('div');
+  body.className = 'cat-body';
+  body.appendChild(bodyEl);
+  det.appendChild(body);
+  return det;
+}
+
+/** Just our three clubs' own divisions — never all eight. Collapsed by
+ *  default: this is context for the three-team comparison above it, not
+ *  something every reader opens every visit. */
+function drawDivisions(divisions) {
+  const section = $('standings-section');
+  const wrap = $('standings');
+  wrap.textContent = '';
+  if (!divisions?.length) { section.hidden = true; return; }
+
+  for (const div of divisions) {
+    const table = document.createElement('div');
+    table.className = 'standings-table';
+    table.innerHTML = `
+      <div class="standings-row standings-head">
+        <span class="st-team"></span><span>W</span><span>L</span><span>T</span>
+        <span>Pct</span><span>GB</span><span>Strk</span><span>Diff</span>
+      </div>` + div.teams.map((t) => `
+      <div class="standings-row${t.ours ? ' ours' : ''}">
+        <span class="st-team">${t.logo ? `<img src="${esc(t.logo)}" alt="" width="18" height="18">` : ''}${esc(t.name || t.abbr || '—')}</span>
+        <span>${t.wins ?? '—'}</span><span>${t.losses ?? '—'}</span><span>${t.ties ?? '—'}</span>
+        <span>${t.pct != null ? t.pct.toFixed(3).replace(/^0/, '') : '—'}</span>
+        <span>${esc(t.gamesBehind ?? '—')}</span>
+        <span>${esc(t.streak ?? '—')}</span>
+        <span>${esc(t.differential ?? '—')}</span>
+      </div>`).join('');
+    wrap.appendChild(buildCollapsible(`div-${div.name}`, `
+      <span class="cat-title">${esc(div.name)}</span>
+      <span class="cat-count">${div.teams.length} teams</span>`, table));
+  }
+  section.hidden = false;
+}
+
+/** Collapsed by default, one group per club, only for clubs with a listed
+ *  player — a section with nothing to say about the Bills stays out of the
+ *  Bills' way. */
+function drawInjuries(injuries, teams) {
+  const section = $('injuries-section');
+  const wrap = $('injuries');
+  wrap.textContent = '';
+  const withPlayers = (injuries || []).filter((g) => g.players.length);
+  if (!withPlayers.length) { section.hidden = true; return; }
+
+  const byKey = Object.fromEntries((teams || []).map((t) => [t.key, t]));
+  for (const group of withPlayers) {
+    const team = byKey[group.key];
+    const table = document.createElement('div');
+    table.className = 'injury-table';
+    table.innerHTML = group.players.map((p) => `
+      <div class="injury-row">
+        <span class="inj-name">${esc(p.name || '—')}<span class="inj-pos">${esc(p.position || '')}</span></span>
+        <span class="inj-status inj-status-${statusSlug(p.status)}">${esc(p.status)}</span>
+      </div>`).join('');
+    wrap.appendChild(buildCollapsible(`inj-${group.key}`, `
+      ${team?.logo ? `<img class="cat-team-logo" src="${esc(team.logo)}" alt="" width="18" height="18">` : ''}
+      <span class="cat-title">${esc(team?.abbr || group.key.toUpperCase())}</span>
+      <span class="cat-count">${group.players.length} listed</span>`, table));
+  }
+  section.hidden = false;
+}
+
+const statusSlug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
 /** Win percentage, ties counting as half a win — the standard sort key for
  *  "current record" that's fair when the three clubs have played a
@@ -416,7 +516,7 @@ function drawTeams(teams) {
         ${kv('Points scored / game', num(r.pointsForPerGame, 1), pfRank[t.key])}
         ${kv('Points allowed / game', num(r.pointsAgainstPerGame, 1), paRank[t.key])}
         ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, diffRank[t.key])}
-        ${kv('Games played', statOf(t, 'general', 'gamesPlayed'))}
+        ${kv('Games played', gamesPlayedOf(t))}
       </div>
       ${t.nextEvent ? `<p class="team-next">Next: <b>${esc(t.nextEvent.name || '')}</b> ${esc(shortDate(t.nextEvent.date))}</p>` : ''}
     `;
@@ -432,6 +532,21 @@ function num(v, dp = 0) {
 
 function statOf(team, cat, name) {
   return team.indexed?.[cat]?.[name]?.display ?? '—';
+}
+
+/**
+ * Games played, for the team card. ESPN serves this same number two ways —
+ * the season-statistics endpoint, and the win/loss record — and on game day
+ * the record updates first, leaving the stats endpoint a game behind. A
+ * card reading "3-0" over "Games played: 2" is confusing in a way the
+ * comparison tables below aren't: those totals still ARE only two games' worth,
+ * so the record's fresher count would make their own denominator wrong.
+ */
+function gamesPlayedOf(t) {
+  const r = t.record || {};
+  return Number.isFinite(r.wins) && Number.isFinite(r.losses)
+    ? String(r.wins + r.losses + (Number.isFinite(r.ties) ? r.ties : 0))
+    : statOf(t, 'general', 'gamesPlayed');
 }
 
 /**
@@ -899,6 +1014,12 @@ function drawLiveScores(d) {
         <span class="live-side">${home?.abbr ? esc(home.abbr) : '—'}${g.state !== 'pre' ? ` <b>${esc(home?.score ?? 0)}</b>` : ''}</span>
       </div>
       <div class="live-detail">${esc(g.detail || '')}</div>
+      ${g.state === 'in' && Number.isFinite(g.down)
+        ? `<div class="live-situation">${esc(downDistance(g))}${g.redZone ? ' <span class="live-rz">RED ZONE</span>' : ''}</div>`
+        : ''}
+      ${g.network || g.venue
+        ? `<div class="live-meta">${[g.network, g.venue].filter(Boolean).map(esc).join(' · ')}</div>`
+        : ''}
     `;
     if (oursTeam) {
       card.style.setProperty('--team', accent(oursTeam));

@@ -13,6 +13,17 @@ import { CATEGORIES, QB, leaders, clock } from './_lib/metrics.mjs';
 const TTL_MS = 120_000; // two minutes — live enough for a scoreboard, kind to ESPN
 let cache = { at: 0, payload: null };
 
+// Not under SITE (…/apis/site/v2/…) — the league standings live one level up,
+// under …/apis/v2/…. `level=3` is what asks ESPN for the division tier;
+// without it the entries are conference-wide (16 teams), not the four-team
+// groups a division table needs.
+const STANDINGS_URL = 'https://site.api.espn.com/apis/v2/sports/football/nfl/standings?level=3';
+
+// Every status ESPN's roster feed has actually returned: a placed-on-IR
+// player is every bit as unavailable as one marked "Out", so the two share
+// a rank; anything unrecognised sorts last rather than vanishing.
+const INJURY_SEVERITY = { Out: 0, 'Injured Reserve': 0, Doubtful: 1, Questionable: 2 };
+
 export default async () => {
   const fresh = cache.payload && Date.now() - cache.at < TTL_MS;
   if (fresh) return respond(cache.payload, 'hit');
@@ -45,13 +56,19 @@ async function build() {
   const scoreboard = await getJson(`${SITE}/scoreboard`).catch(() => null);
   const season = readSeason(scoreboard);
 
-  const teams = await Promise.all(TEAMS.map((t) => buildTeam(t, season.year)));
+  const [teams, divisions, injuries] = await Promise.all([
+    Promise.all(TEAMS.map((t) => buildTeam(t, season.year))),
+    buildDivisions(),
+    buildInjuries(),
+  ]);
   const slate = weekGames(scoreboard);
 
   return {
     generated: new Date().toISOString(),
     season,
     teams,
+    divisions,                           // our three clubs' own divisions only
+    injuries,                            // one entry per club, empty list if none listed
     live: slate.filter((g) => g.ours),   // our three clubs' games only
     slate,                               // the whole league's week
     // The winner of each row is decided here, once, so the page cannot
@@ -173,11 +190,21 @@ function weekGames(scoreboard) {
   for (const ev of scoreboard?.events || []) {
     const comp = ev.competitions?.[0];
     const cs = comp?.competitors || [];
+    const situation = comp?.situation;
     out.push({
       name: ev.shortName ?? null,
       date: ev.date ?? null,                          // kickoff, ISO — drives the game-day default and the live-scores window
       state: comp?.status?.type?.state ?? null,       // pre | in | post
       detail: comp?.status?.type?.shortDetail ?? null,
+      venue: comp?.venue?.fullName ?? null,
+      network: (comp?.broadcasts || []).flatMap((b) => b.names || [])[0] ?? null,
+      // down/distance only ever arrive together; yardLine's own orientation
+      // (whose 0 end?) isn't worth the risk of getting backwards for a "down
+      // & distance" note, so it is read here but never turned into a
+      // "ball on" position.
+      down: Number.isFinite(situation?.down) ? situation.down : null,
+      distance: Number.isFinite(situation?.distance) ? situation.distance : null,
+      redZone: situation?.isRedZone === true,
       ours: cs.some((c) => ours.has(c.team?.abbreviation)),
       teams: cs.map((c) => ({
         abbr: c.team?.abbreviation ?? null,
@@ -187,6 +214,84 @@ function weekGames(scoreboard) {
     });
   }
   return out.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+}
+
+/**
+ * Our three clubs' own divisions — never the other five. A reader here for
+ * the Packers has no use for the NFC South standings; this stays a page
+ * about three teams, not a league standings site that happens to open on
+ * three teams.
+ */
+async function buildDivisions() {
+  const root = await getJson(STANDINGS_URL).catch(() => null);
+  const groups = root?.children?.flatMap((conf) => conf.children || []) || [];
+  const ourAbbrs = new Set(TEAMS.flatMap((t) => t.abbrs || [t.abbr]));
+
+  const divisions = groups
+    .filter((g) => (g.standings?.entries || []).some((e) => ourAbbrs.has(e.team?.abbreviation)))
+    .map((g) => ({
+      name: g.name ?? null,
+      teams: (g.standings?.entries || [])
+        .map((e) => ({
+          abbr: e.team?.abbreviation ?? null,
+          name: e.team?.shortDisplayName ?? e.team?.displayName ?? null,
+          logo: pickLogo(e.team?.logos),
+          ours: ourAbbrs.has(e.team?.abbreviation),
+          wins: divStat(e, 'wins'),
+          losses: divStat(e, 'losses'),
+          ties: divStat(e, 'ties'),
+          pct: divStat(e, 'winPercent'),
+          gamesBehind: divStat(e, 'gamesBehind', true),
+          streak: divStat(e, 'streak', true),
+          differential: divStat(e, 'differential', true),
+        }))
+        .sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1)),
+    }));
+
+  // Packers, Raiders, Bills order — the page's own club order — rather than
+  // however ESPN happened to walk conferences and divisions.
+  return TEAMS
+    .map((t) => divisions.find((d) => d.teams.some((x) => x.ours && x.abbr === t.abbr)))
+    .filter(Boolean)
+    // Two of the three can share a division only if realignment ever
+    // happens; dedupe so it is not shown twice.
+    .filter((d, i, arr) => arr.indexOf(d) === i);
+}
+
+function divStat(entry, name, display = false) {
+  const s = (entry.stats || []).find((x) => x.name === name);
+  if (!s) return null;
+  return display ? (s.displayValue ?? null) : (Number.isFinite(s.value) ? s.value : null);
+}
+
+/**
+ * The current injury report for each club, from the same roster call ESPN's
+ * own site reads it from — not the "injuries" core-API feed, which turns out
+ * to be a general player-news log (most of it about players who are fully
+ * active) rather than a report of who is actually unavailable.
+ */
+async function buildInjuries() {
+  const rosters = await allSettledValues(TEAMS.map((t) => getJson(`${SITE}/teams/${t.slug}/roster`)));
+  return TEAMS.map((team, i) => {
+    const groups = rosters[i]?.athletes || [];
+    const players = groups
+      .flatMap((g) => g.items || [])
+      .flatMap((a) => {
+        const inj = a.injuries?.[0];
+        if (!inj?.status) return [];
+        return [{
+          name: a.fullName ?? a.displayName ?? null,
+          position: a.position?.abbreviation ?? null,
+          status: inj.status,
+          date: inj.date ?? null,
+        }];
+      })
+      .sort((a, b) => (
+        (INJURY_SEVERITY[a.status] ?? 3) - (INJURY_SEVERITY[b.status] ?? 3)
+        || String(a.name).localeCompare(String(b.name))
+      ));
+    return { key: team.key, players };
+  });
 }
 
 /**

@@ -185,6 +185,9 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .live-side b { color: var(--team, var(--ink)); margin-left: .3rem; font-variant-numeric: tabular-nums; }
 .live-at { color: var(--ink-3); font-size: .75rem; font-weight: 400; }
 .live-detail { margin-top: .15rem; color: var(--ink-3); font-size: .7rem; text-transform: uppercase; letter-spacing: .05em; }
+.live-situation { margin-top: .3rem; color: var(--ink-2); font-size: .74rem; font-weight: 600; }
+.live-rz { margin-left: .4rem; color: #ff5a5a; font-size: .62rem; font-weight: 700; letter-spacing: .06em; }
+.live-meta { margin-top: .25rem; color: var(--ink-3); font-size: .66rem; letter-spacing: .03em; }
 
 @media (prefers-reduced-motion: reduce) {
   .live-dot { animation: none; }
@@ -307,6 +310,8 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 }
 
 .section-note { margin: 0; color: var(--ink-3); font-size: .8rem; max-width: 40rem; line-height: 1.5; }
+.section-note a { color: var(--ink-2); }
+.section-note a:hover { color: var(--ink); }
 
 /* -------------------------------------------------------------- scoreboard */
 
@@ -408,8 +413,45 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .cat-note { margin: 0; padding: 0 .9rem .7rem; color: var(--ink-3); font-size: .76rem; max-width: 46rem; }
 .cat-body { border-top: 1px solid var(--line); padding-top: .1rem; }
 .cat .rows { border: 0; background: none; }
+.cat-team-logo { width: 18px; height: 18px; object-fit: contain; flex: none; }
 
 @media (prefers-reduced-motion: reduce) { .cat-arrow { transition: none; } }
+
+/* -------------------------------------------------------- division standings */
+
+.standings-table + .standings-table { margin-top: .8rem; }
+.standings-row {
+  display: grid; grid-template-columns: 1fr repeat(7, 2.4rem);
+  border-top: 1px solid var(--line); font-size: .78rem; color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.standings-row:first-child { border-top: 0; }
+.standings-row > span { padding: .5rem .4rem; text-align: center; }
+.standings-row .st-team { text-align: left; display: flex; align-items: center; gap: .4rem; padding-left: .85rem; }
+.standings-row .st-team img { flex: none; }
+.standings-head {
+  color: var(--ink-3); font-size: .62rem; text-transform: uppercase; letter-spacing: .08em;
+  background: #0b1017; border-top: 0;
+}
+.standings-row.ours { color: var(--ink); background: rgba(255, 255, 255, .025); }
+.standings-row.ours .st-team { font-weight: 700; }
+
+/* -------------------------------------------------------------- injury report */
+
+.injury-row {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  padding: .5rem .9rem; border-top: 1px solid var(--line); font-size: .82rem;
+}
+.injury-row:first-child { border-top: 0; }
+.inj-name { color: var(--ink); }
+.inj-pos { margin-left: .5rem; color: var(--ink-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; }
+.inj-status {
+  flex: none; font-size: .64rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; padding: .2rem .5rem; border: 1px solid var(--line-2);
+}
+.inj-status-out, .inj-status-injured-reserve { color: #ff5a5a; border-color: rgba(255, 90, 90, .35); }
+.inj-status-doubtful { color: #ff9f4a; border-color: rgba(255, 159, 74, .35); }
+.inj-status-questionable { color: #e8d24a; border-color: rgba(232, 210, 74, .35); }
 
 /* ------------------------------------------------------- comparison rows */
 
@@ -608,6 +650,11 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
   .cell-side { display: contents; }
   .cell .among { position: absolute; top: .5rem; right: .7rem; }
   .rank { display: block; margin-top: .1rem; }
+
+  .standings-row { grid-template-columns: 1fr repeat(7, 1.9rem); font-size: .72rem; }
+  .standings-row > span { padding: .5rem .15rem; }
+  .standings-row .st-team { padding-left: .6rem; }
+  .standings-head { font-size: .56rem; }
 }
 
 @media (max-width: 30rem) {
