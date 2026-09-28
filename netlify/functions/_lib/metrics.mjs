@@ -17,7 +17,21 @@
 // column headings carry each team's games played, so the denominator is never
 // hidden.
 //
-// Two traps in ESPN's naming, both already paid for once:
+// `nf` names a field on the nflverse-built season object (see nflverse.mjs)
+// that this metric reads instead of ESPN's own `cat`/`stat` pair — and gets
+// its rank from a rank WE compute across all 32 teams, never from ESPN's own
+// per-stat rank field. That field turned out not to be trustworthy: two teams
+// tied on the same touchdown total came back with different ESPN ranks, and
+// a player's own ESPN "yards per game" field did not equal his own correct
+// season yards divided by his own correct games played. See stats.mjs for
+// where `nf` is read and where a metric WITHOUT one — because nflverse's
+// summary file does not carry it (longest play, red zone / third-down /
+// fourth-down %, time of possession, hurries, passes batted down, return
+// touchdowns split by type) — has its ESPN value kept but its rank dropped
+// rather than shown from a field already shown to be unreliable.
+//
+// Two traps in ESPN's naming, both already paid for once, that still apply
+// to the handful of rows that remain ESPN-sourced:
 //
 //  - `passing.sacks` is sacks the OFFENCE TOOK. `defensive.sacks` is sacks the
 //    DEFENCE MADE. Same word, opposite meaning, opposite direction.
@@ -35,20 +49,22 @@ export const CATEGORIES = [
     // wants, and a page that opens as a wall of 103 rows is harder to scan
     // than a list of seven headings. What the reader opens is remembered.
     metrics: [
-      // Points conceded comes off the RECORD, not the defensive category:
-      // ESPN serves defensive.pointsAllowed and yardsAllowed as 0 all season,
-      // and a real 0 is indistinguishable from missing data on a page.
-      { key: 'ppg', label: 'Points per game', cat: 'scoring', stat: 'totalPointsPerGame', better: 'high' },
-      { key: 'papg', label: 'Points allowed per game', from: 'record', field: 'pointsAgainstPerGame', better: 'low', dp: 1 },
-      { key: 'diff', label: 'Point differential', from: 'record', field: 'differential', better: 'high', dp: 0, count: true },
-      m('totalTd', 'Touchdowns', 'scoring', 'totalTouchdowns', 'high', { count: true }),
+      // Points scored/conceded come off the RECORD, not a stats-endpoint
+      // category: the record is the one number ESPN keeps in sync with the
+      // scoreboard in real time. `nflRankKey` says which of our own
+      // league-wide ranks (computed in stats.mjs from the standings feed,
+      // covering all 32 teams) applies to this row.
+      { key: 'ppg', label: 'Points per game', from: 'record', field: 'pointsForPerGame', better: 'high', dp: 1, nflRankKey: 'pf' },
+      { key: 'papg', label: 'Points allowed per game', from: 'record', field: 'pointsAgainstPerGame', better: 'low', dp: 1, nflRankKey: 'pa' },
+      { key: 'diff', label: 'Point differential', from: 'record', field: 'differential', better: 'high', dp: 0, count: true, nflRankKey: 'diff' },
+      m('totalTd', 'Touchdowns', 'scoring', 'totalTouchdowns', 'high', { count: true, nf: 'totalTouchdowns' }),
       m('thirdPct', 'Third down %', 'miscellaneous', 'thirdDownConvPct', 'high', { suffix: '%' }),
       m('fourthPct', 'Fourth down %', 'miscellaneous', 'fourthDownConvPct', 'high', { suffix: '%' }),
       m('rzScore', 'Red zone scoring %', 'miscellaneous', 'redzoneScoringPct', 'high', { suffix: '%' }),
       m('rzTd', 'Red zone touchdown %', 'miscellaneous', 'redzoneTouchdownPct', 'high', { suffix: '%' }),
-      m('fdPerGame', 'First downs per game', 'miscellaneous', 'firstDownsPerGame', 'high'),
-      m('fdPass', 'First downs passing', 'miscellaneous', 'firstDownsPassing', 'high', { count: true }),
-      m('fdRush', 'First downs rushing', 'miscellaneous', 'firstDownsRushing', 'high', { count: true }),
+      m('fdPerGame', 'First downs per game', 'miscellaneous', 'firstDownsPerGame', 'high', { nf: 'firstDownsPerGame' }),
+      m('fdPass', 'First downs passing', 'miscellaneous', 'firstDownsPassing', 'high', { count: true, nf: 'firstDownsPassing' }),
+      m('fdRush', 'First downs rushing', 'miscellaneous', 'firstDownsRushing', 'high', { count: true, nf: 'firstDownsRushing' }),
       m('top', 'Time of possession', 'miscellaneous', 'possessionTimeSeconds', 'high', { count: true, format: 'clock' }),
     ],
   },
@@ -57,56 +73,56 @@ export const CATEGORIES = [
     title: 'Passing',
     note: 'Net figures are after sack yardage; gross is before it.',
     metrics: [
-      m('passYpg', 'Passing yards per game (net)', 'passing', 'netPassingYardsPerGame', 'high'),
-      m('passYds', 'Passing yards (net)', 'passing', 'netPassingYards', 'high', { count: true }),
-      m('passGross', 'Passing yards (gross)', 'passing', 'passingYards', 'high', { count: true }),
-      m('comp', 'Completions', 'passing', 'completions', 'high', { count: true }),
-      m('att', 'Attempts', 'passing', 'passingAttempts', 'high', { count: true }),
-      m('compPct', 'Completion %', 'passing', 'completionPct', 'high', { suffix: '%' }),
-      m('ypa', 'Yards per attempt (net)', 'passing', 'netYardsPerPassAttempt', 'high'),
-      m('ypc', 'Yards per completion', 'passing', 'yardsPerCompletion', 'high'),
-      m('passTd', 'Passing touchdowns', 'passing', 'passingTouchdowns', 'high', { count: true }),
-      m('passTdPct', 'Touchdown %', 'passing', 'passingTouchdownPct', 'high', { suffix: '%' }),
-      m('ints', 'Interceptions thrown', 'passing', 'interceptions', 'low', { count: true }),
-      m('intPct', 'Interception %', 'passing', 'interceptionPct', 'low', { suffix: '%' }),
-      m('rating', 'Team passer rating', 'passing', 'QBRating', 'high'),
+      m('passYpg', 'Passing yards per game (net)', 'passing', 'netPassingYardsPerGame', 'high', { nf: 'passYdsPerGame' }),
+      m('passYds', 'Passing yards (net)', 'passing', 'netPassingYards', 'high', { count: true, nf: 'passYdsNet' }),
+      m('passGross', 'Passing yards (gross)', 'passing', 'passingYards', 'high', { count: true, nf: 'passYdsGross' }),
+      m('comp', 'Completions', 'passing', 'completions', 'high', { count: true, nf: 'completions' }),
+      m('att', 'Attempts', 'passing', 'passingAttempts', 'high', { count: true, nf: 'attempts' }),
+      m('compPct', 'Completion %', 'passing', 'completionPct', 'high', { suffix: '%', nf: 'completionPct' }),
+      m('ypa', 'Yards per attempt (net)', 'passing', 'netYardsPerPassAttempt', 'high', { nf: 'passYpa' }),
+      m('ypc', 'Yards per completion', 'passing', 'yardsPerCompletion', 'high', { nf: 'passYpc' }),
+      m('passTd', 'Passing touchdowns', 'passing', 'passingTouchdowns', 'high', { count: true, nf: 'passTd' }),
+      m('passTdPct', 'Touchdown %', 'passing', 'passingTouchdownPct', 'high', { suffix: '%', nf: 'passTdPct' }),
+      m('ints', 'Interceptions thrown', 'passing', 'interceptions', 'low', { count: true, nf: 'ints' }),
+      m('intPct', 'Interception %', 'passing', 'interceptionPct', 'low', { suffix: '%', nf: 'intPct' }),
+      m('rating', 'Team passer rating', 'passing', 'QBRating', 'high', { nf: 'passerRating' }),
       m('longPass', 'Longest pass', 'passing', 'longPassing', 'high'),
-      m('passFd', 'Passing first downs', 'passing', 'passingFirstDowns', 'high', { count: true }),
-      m('passBig', 'Passing plays of 20+', 'passing', 'passingBigPlays', 'high', { count: true }),
-      m('yac', 'Yards after catch', 'passing', 'passingYardsAfterCatch', 'high', { count: true }),
-      m('sacksTaken', 'Sacks allowed', 'passing', 'sacks', 'low', { count: true }),
-      m('sackYds', 'Yards lost to sacks', 'passing', 'sackYardsLost', 'low', { count: true }),
+      m('passFd', 'Passing first downs', 'passing', 'passingFirstDowns', 'high', { count: true, nf: 'passFirstDowns' }),
+      m('passBig', 'Passing plays of 20+', 'passing', 'passingBigPlays', 'high', { count: true, nf: 'passBigPlays' }),
+      m('yac', 'Yards after catch', 'passing', 'passingYardsAfterCatch', 'high', { count: true, nf: 'passYac' }),
+      m('sacksTaken', 'Sacks allowed', 'passing', 'sacks', 'low', { count: true, nf: 'sacksTaken' }),
+      m('sackYds', 'Yards lost to sacks', 'passing', 'sackYardsLost', 'low', { count: true, nf: 'sackYdsLost' }),
     ],
   },
   {
     key: 'rushing',
     title: 'Rushing',
     metrics: [
-      m('rushYpg', 'Rushing yards per game', 'rushing', 'rushingYardsPerGame', 'high'),
-      m('rushYds', 'Rushing yards', 'rushing', 'rushingYards', 'high', { count: true }),
-      m('carries', 'Carries', 'rushing', 'rushingAttempts', 'high', { count: true }),
-      m('ypr', 'Yards per carry', 'rushing', 'yardsPerRushAttempt', 'high'),
-      m('rushTd', 'Rushing touchdowns', 'rushing', 'rushingTouchdowns', 'high', { count: true }),
+      m('rushYpg', 'Rushing yards per game', 'rushing', 'rushingYardsPerGame', 'high', { nf: 'rushYdsPerGame' }),
+      m('rushYds', 'Rushing yards', 'rushing', 'rushingYards', 'high', { count: true, nf: 'rushYds' }),
+      m('carries', 'Carries', 'rushing', 'rushingAttempts', 'high', { count: true, nf: 'carries' }),
+      m('ypr', 'Yards per carry', 'rushing', 'yardsPerRushAttempt', 'high', { nf: 'rushYpc' }),
+      m('rushTd', 'Rushing touchdowns', 'rushing', 'rushingTouchdowns', 'high', { count: true, nf: 'rushTd' }),
       m('longRush', 'Longest rush', 'rushing', 'longRushing', 'high'),
-      m('rushFd', 'Rushing first downs', 'rushing', 'rushingFirstDowns', 'high', { count: true }),
-      m('rushBig', 'Rushing plays of 10+', 'rushing', 'rushingBigPlays', 'high', { count: true }),
+      m('rushFd', 'Rushing first downs', 'rushing', 'rushingFirstDowns', 'high', { count: true, nf: 'rushFirstDowns' }),
+      m('rushBig', 'Rushing plays of 10+', 'rushing', 'rushingBigPlays', 'high', { count: true, nf: 'rushBigPlays' }),
       m('stuffed', 'Runs stopped for a loss', 'rushing', 'stuffs', 'low', { count: true }),
-      m('rushFum', 'Rushing fumbles', 'rushing', 'rushingFumbles', 'low', { count: true }),
+      m('rushFum', 'Rushing fumbles', 'rushing', 'rushingFumbles', 'low', { count: true, nf: 'rushFumbles' }),
     ],
   },
   {
     key: 'receiving',
     title: 'Receiving',
     metrics: [
-      m('recYpg', 'Receiving yards per game', 'receiving', 'receivingYardsPerGame', 'high'),
-      m('rec', 'Receptions', 'receiving', 'receptions', 'high', { count: true }),
-      m('targets', 'Targets', 'receiving', 'receivingTargets', 'high', { count: true }),
-      m('ypRec', 'Yards per reception', 'receiving', 'yardsPerReception', 'high'),
-      m('recTd', 'Receiving touchdowns', 'receiving', 'receivingTouchdowns', 'high', { count: true }),
+      m('recYpg', 'Receiving yards per game', 'receiving', 'receivingYardsPerGame', 'high', { nf: 'recYdsPerGame' }),
+      m('rec', 'Receptions', 'receiving', 'receptions', 'high', { count: true, nf: 'receptions' }),
+      m('targets', 'Targets', 'receiving', 'receivingTargets', 'high', { count: true, nf: 'targets' }),
+      m('ypRec', 'Yards per reception', 'receiving', 'yardsPerReception', 'high', { nf: 'recYpc' }),
+      m('recTd', 'Receiving touchdowns', 'receiving', 'receivingTouchdowns', 'high', { count: true, nf: 'recTd' }),
       m('longRec', 'Longest reception', 'receiving', 'longReception', 'high'),
-      m('recFd', 'Receiving first downs', 'receiving', 'receivingFirstDowns', 'high', { count: true }),
-      m('recBig', 'Receptions of 20+', 'receiving', 'receivingBigPlays', 'high', { count: true }),
-      m('recYac', 'Yards after catch', 'receiving', 'receivingYardsAfterCatch', 'high', { count: true }),
+      m('recFd', 'Receiving first downs', 'receiving', 'receivingFirstDowns', 'high', { count: true, nf: 'recFirstDowns' }),
+      m('recBig', 'Receptions of 20+', 'receiving', 'receivingBigPlays', 'high', { count: true, nf: 'recBigPlays' }),
+      m('recYac', 'Yards after catch', 'receiving', 'receivingYardsAfterCatch', 'high', { count: true, nf: 'recYac' }),
     ],
   },
   {
@@ -114,23 +130,23 @@ export const CATEGORIES = [
     title: 'Defence',
     note: 'Points allowed comes from the season record — ESPN does not publish a per-team yards-allowed figure.',
     metrics: [
-      { key: 'papg2', label: 'Points allowed per game', from: 'record', field: 'pointsAgainstPerGame', better: 'low', dp: 1 },
-      m('sacksMade', 'Sacks', 'defensive', 'sacks', 'high', { count: true }),
-      m('sackYdsMade', 'Sack yards', 'defensive', 'sackYards', 'high', { count: true }),
+      { key: 'papg2', label: 'Points allowed per game', from: 'record', field: 'pointsAgainstPerGame', better: 'low', nflRankKey: 'pa' },
+      m('sacksMade', 'Sacks', 'defensive', 'sacks', 'high', { count: true, nf: 'sacksMade' }),
+      m('sackYdsMade', 'Sack yards', 'defensive', 'sackYards', 'high', { count: true, nf: 'sackYdsMade' }),
       m('hurries', 'Quarterback hurries', 'defensive', 'hurries', 'high', { count: true }),
-      m('tfl', 'Tackles for loss', 'defensive', 'tacklesForLoss', 'high', { count: true }),
-      m('picks', 'Interceptions', 'defensiveInterceptions', 'interceptions', 'high', { count: true }),
-      m('pickYds', 'Interception return yards', 'defensiveInterceptions', 'interceptionYards', 'high', { count: true }),
+      m('tfl', 'Tackles for loss', 'defensive', 'tacklesForLoss', 'high', { count: true, nf: 'tfl' }),
+      m('picks', 'Interceptions', 'defensiveInterceptions', 'interceptions', 'high', { count: true, nf: 'picks' }),
+      m('pickYds', 'Interception return yards', 'defensiveInterceptions', 'interceptionYards', 'high', { count: true, nf: 'pickYds' }),
       m('pickTd', 'Interception touchdowns', 'defensiveInterceptions', 'interceptionTouchdowns', 'high', { count: true }),
-      m('pd', 'Passes defended', 'defensive', 'passesDefended', 'high', { count: true }),
+      m('pd', 'Passes defended', 'defensive', 'passesDefended', 'high', { count: true, nf: 'passDefended' }),
       m('batted', 'Passes batted down', 'defensive', 'passesBattedDown', 'high', { count: true }),
-      m('ff', 'Fumbles forced', 'general', 'fumblesForced', 'high', { count: true }),
-      m('fumRec', 'Fumbles recovered', 'general', 'fumblesRecovered', 'high', { count: true }),
-      m('defTd', 'Defensive touchdowns', 'defensive', 'defensiveTouchdowns', 'high', { count: true }),
-      m('safeties', 'Safeties', 'defensive', 'safeties', 'high', { count: true }),
-      m('solo', 'Solo tackles', 'defensive', 'soloTackles', 'high', { count: true }),
-      m('assist', 'Assisted tackles', 'defensive', 'assistTackles', 'high', { count: true }),
-      m('tackles', 'Total tackles', 'defensive', 'totalTackles', 'high', { count: true }),
+      m('ff', 'Fumbles forced', 'general', 'fumblesForced', 'high', { count: true, nf: 'fumblesForced' }),
+      m('fumRec', 'Fumbles recovered', 'general', 'fumblesRecovered', 'high', { count: true, nf: 'fumblesRecovered' }),
+      m('defTd', 'Defensive touchdowns', 'defensive', 'defensiveTouchdowns', 'high', { count: true, nf: 'defTd' }),
+      m('safeties', 'Safeties', 'defensive', 'safeties', 'high', { count: true, nf: 'safeties' }),
+      m('solo', 'Solo tackles', 'defensive', 'soloTackles', 'high', { count: true, nf: 'soloTackles' }),
+      m('assist', 'Assisted tackles', 'defensive', 'assistTackles', 'high', { count: true, nf: 'assistTackles' }),
+      m('tackles', 'Total tackles', 'defensive', 'totalTackles', 'high', { count: true, nf: 'totalTackles' }),
     ],
   },
   {
@@ -138,13 +154,13 @@ export const CATEGORIES = [
     title: 'Turnovers & discipline',
     note: 'The one table where every row that is "high" is something the other side did.',
     metrics: [
-      m('toDiff', 'Turnover differential', 'miscellaneous', 'turnOverDifferential', 'high', { count: true }),
-      m('takeaways', 'Takeaways', 'miscellaneous', 'totalTakeaways', 'high', { count: true }),
-      m('giveaways', 'Giveaways', 'miscellaneous', 'totalGiveaways', 'low', { count: true }),
-      m('fumbles', 'Fumbles', 'general', 'fumbles', 'low', { count: true }),
-      m('fumblesLost', 'Fumbles lost', 'general', 'fumblesLost', 'low', { count: true }),
-      m('penalties', 'Penalties', 'general', 'totalPenalties', 'low', { count: true }),
-      m('penaltyYds', 'Penalty yards', 'general', 'totalPenaltyYards', 'low', { count: true }),
+      m('toDiff', 'Turnover differential', 'miscellaneous', 'turnOverDifferential', 'high', { count: true, nf: 'turnoverDiff' }),
+      m('takeaways', 'Takeaways', 'miscellaneous', 'totalTakeaways', 'high', { count: true, nf: 'takeaways' }),
+      m('giveaways', 'Giveaways', 'miscellaneous', 'totalGiveaways', 'low', { count: true, nf: 'giveaways' }),
+      m('fumbles', 'Fumbles', 'general', 'fumbles', 'low', { count: true, nf: 'fumbles' }),
+      m('fumblesLost', 'Fumbles lost', 'general', 'fumblesLost', 'low', { count: true, nf: 'fumblesLost' }),
+      m('penalties', 'Penalties', 'general', 'totalPenalties', 'low', { count: true, nf: 'penalties' }),
+      m('penaltyYds', 'Penalty yards', 'general', 'totalPenaltyYards', 'low', { count: true, nf: 'penaltyYards' }),
       m('fdPenalty', 'First downs given by penalty', 'miscellaneous', 'firstDownsPenalty', 'low', { count: true }),
     ],
   },
@@ -152,18 +168,18 @@ export const CATEGORIES = [
     key: 'special',
     title: 'Kicking, punting & returns',
     metrics: [
-      m('fgPct', 'Field goal %', 'kicking', 'fieldGoalPct', 'high', { suffix: '%' }),
-      m('fgMade', 'Field goals made', 'kicking', 'fieldGoalsMade', 'high', { count: true }),
-      m('fgLong', 'Longest field goal', 'kicking', 'longFieldGoalMade', 'high' ),
-      m('xpPct', 'Extra point %', 'kicking', 'extraPointPct', 'high', { suffix: '%' }),
-      m('kickPts', 'Points from kicking', 'kicking', 'totalKickingPoints', 'high', { count: true }),
+      m('fgPct', 'Field goal %', 'kicking', 'fieldGoalPct', 'high', { suffix: '%', nf: 'fgPct' }),
+      m('fgMade', 'Field goals made', 'kicking', 'fieldGoalsMade', 'high', { count: true, nf: 'fgMade' }),
+      m('fgLong', 'Longest field goal', 'kicking', 'longFieldGoalMade', 'high', { nf: 'fgLong' }),
+      m('xpPct', 'Extra point %', 'kicking', 'extraPointPct', 'high', { suffix: '%', nf: 'xpPct' }),
+      m('kickPts', 'Points from kicking', 'kicking', 'totalKickingPoints', 'high', { count: true, nf: 'kickPts' }),
       m('tbPct', 'Touchback %', 'kicking', 'touchbackPct', 'high', { suffix: '%' }),
-      m('puntAvg', 'Punting average (gross)', 'punting', 'grossAvgPuntYards', 'high'),
-      m('puntNet', 'Punting average (net)', 'punting', 'netAvgPuntYards', 'high'),
-      m('puntIn20', 'Punts inside the 20', 'punting', 'puntsInside20', 'high', { count: true }),
-      m('puntLong', 'Longest punt', 'punting', 'longPunt', 'high'),
-      m('krAvg', 'Yards per kick return', 'returning', 'yardsPerKickReturn', 'high'),
-      m('prAvg', 'Yards per punt return', 'returning', 'yardsPerPuntReturn', 'high'),
+      m('puntAvg', 'Punting average (gross)', 'punting', 'grossAvgPuntYards', 'high', { nf: 'puntAvgGross' }),
+      m('puntNet', 'Punting average (net)', 'punting', 'netAvgPuntYards', 'high', { nf: 'puntAvgNet' }),
+      m('puntIn20', 'Punts inside the 20', 'punting', 'puntsInside20', 'high', { count: true, nf: 'puntIn20' }),
+      m('puntLong', 'Longest punt', 'punting', 'longPunt', 'high', { nf: 'puntLong' }),
+      m('krAvg', 'Yards per kick return', 'returning', 'yardsPerKickReturn', 'high', { nf: 'krAvg' }),
+      m('prAvg', 'Yards per punt return', 'returning', 'yardsPerPuntReturn', 'high', { nf: 'prAvg' }),
       m('krTd', 'Kick return touchdowns', 'returning', 'kickReturnTouchdowns', 'high', { count: true }),
       m('prTd', 'Punt return touchdowns', 'returning', 'puntReturnTouchdowns', 'high', { count: true }),
     ],
@@ -172,20 +188,20 @@ export const CATEGORIES = [
 
 /** The quarterback table is built separately — it reads a player, not a team. */
 export const QB = [
-  m('qbYards', 'Passing yards', 'passing', 'passingYards', 'high', { count: true }),
-  m('qbYpg', 'Yards per game', 'passing', 'yardsPerGame', 'high'),
-  m('qbComp', 'Completions', 'passing', 'completions', 'high', { count: true }),
-  m('qbAtt', 'Attempts', 'passing', 'passingAttempts', 'high', { count: true }),
-  m('qbCompPct', 'Completion %', 'passing', 'completionPct', 'high', { suffix: '%' }),
-  m('qbTd', 'Touchdowns', 'passing', 'passingTouchdowns', 'high', { count: true }),
-  m('qbInt', 'Interceptions', 'passing', 'interceptions', 'low', { count: true }),
-  m('qbRating', 'Passer rating', 'passing', 'QBRating', 'high'),
-  m('qbYpa', 'Yards per attempt', 'passing', 'yardsPerPassAttempt', 'high'),
-  m('qbYpc', 'Yards per completion', 'passing', 'yardsPerCompletion', 'high'),
+  m('qbYards', 'Passing yards', 'passing', 'passingYards', 'high', { count: true, nf: 'passYds' }),
+  m('qbYpg', 'Yards per game', 'passing', 'yardsPerGame', 'high', { nf: 'passYdsPerGame' }),
+  m('qbComp', 'Completions', 'passing', 'completions', 'high', { count: true, nf: 'completions' }),
+  m('qbAtt', 'Attempts', 'passing', 'passingAttempts', 'high', { count: true, nf: 'attempts' }),
+  m('qbCompPct', 'Completion %', 'passing', 'completionPct', 'high', { suffix: '%', nf: 'completionPct' }),
+  m('qbTd', 'Touchdowns', 'passing', 'passingTouchdowns', 'high', { count: true, nf: 'passTd' }),
+  m('qbInt', 'Interceptions', 'passing', 'interceptions', 'low', { count: true, nf: 'ints' }),
+  m('qbRating', 'Passer rating', 'passing', 'QBRating', 'high', { nf: 'passerRating' }),
+  m('qbYpa', 'Yards per attempt', 'passing', 'yardsPerPassAttempt', 'high', { nf: 'passYpa' }),
+  m('qbYpc', 'Yards per completion', 'passing', 'yardsPerCompletion', 'high', { nf: 'passYpc' }),
   m('qbLong', 'Longest pass', 'passing', 'longPassing', 'high'),
-  m('qbSacks', 'Sacks taken', 'passing', 'sacks', 'low', { count: true }),
-  m('qbRush', 'Rushing yards', 'rushing', 'rushingYards', 'high', { count: true }),
-  m('qbRushTd', 'Rushing touchdowns', 'rushing', 'rushingTouchdowns', 'high', { count: true }),
+  m('qbSacks', 'Sacks taken', 'passing', 'sacks', 'low', { count: true, nf: 'sacksTaken' }),
+  m('qbRush', 'Rushing yards', 'rushing', 'rushingYards', 'high', { count: true, nf: 'rushYds' }),
+  m('qbRushTd', 'Rushing touchdowns', 'rushing', 'rushingTouchdowns', 'high', { count: true, nf: 'rushTd' }),
 ];
 
 /** Every team metric, flat — used by the tests and by nothing else. */

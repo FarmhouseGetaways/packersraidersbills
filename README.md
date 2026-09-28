@@ -24,7 +24,9 @@ build step, no dependencies, no npm.
 | Section | What it holds |
 |---|---|
 | Live scores strip | Only our three clubs' own games, only while it matters — from an hour before kickoff through the rest of that game's day. Hidden the rest of the time. |
-| Three club panels | Record, standing, points for and against, differential, next fixture |
+| Three club panels | Record, standing, points for and against, differential (each with its NFL-wide rank), next fixture |
+| Division standings | Each club's own division only, collapsed by default |
+| Injury report | Each club's current listed players, collapsed by default, one group per club |
 | Head to head | All three pairings, series record and every meeting since the 1970 AFL–NFL merger |
 | The numbers | **Seven collapsible categories, 89 statistics** — scoring & drives, passing, rushing, receiving, defence, turnovers & discipline, kicking/punting/returns |
 | Quarterbacks | Each club's leading passer, and a 14-row comparison |
@@ -34,27 +36,39 @@ Each category is a real `<details>`, so it opens with a click or the keyboard.
 Scoring and Passing start open; the rest start shut, because 103 rows opened at
 once is a wall rather than a page.
 
-## Every number on this page is live
+## Every number on this page is live — from two independent sources
 
 Nothing is typed in by hand and nothing is a fixture. The page reads its own
-two endpoints, which read ESPN's public API:
+two endpoints:
 
 | Endpoint | Serves | Cached |
 |---|---|---|
-| `/api/stats` | Season records, standings, team statistics with league ranks, each club's leading passer, live scores | 2 minutes |
+| `/api/stats` | Season records, standings, divisions, injuries, most of "the numbers" and the quarterback table, live scores | 2 minutes |
 | `/api/history` | Head-to-head series back to 1970 and season-by-season form for the last twenty seasons | 6 hours |
 
 The page refreshes the live half every 60 seconds and whenever the tab is
 brought back to the front.
 
+**Two sources, not one.** Scores, standings, divisions and rosters/injuries
+come from ESPN's public API. Most of "the numbers" and the quarterback table
+— everything that is a season total or per-game rate built from play-by-play —
+comes from [nflverse](https://github.com/nflverse/nflverse-data), an
+independent, community-run project, not ESPN. Why: see "The rank field that
+looked fine and wasn't" below. A handful of rows nflverse's summary files do
+not carry (longest single play, 3rd/4th-down %, red zone %, time of
+possession, punt/kick-return touchdowns split by type) still read from ESPN's
+per-team statistics endpoint, value only — never that endpoint's rank field.
+
 **Why the functions exist at all.** ESPN's endpoints are not a documented,
 CORS-friendly API, and drawing this page directly from the browser would be
-sixteen cross-origin requests per load. The functions fan out server-side,
-normalise the shapes, and hand the page one JSON document.
+many cross-origin requests per load, several of them to two different
+providers. The functions fan out server-side, normalise the shapes, and hand
+the page one JSON document.
 
-**If ESPN is down the page says so.** It never falls back to invented numbers.
-A function that cannot reach ESPN serves the last good copy it has and marks it
-stale; with nothing cached it returns 502 and the page prints a plain message.
+**If a source is down the page says so.** It never falls back to invented
+numbers. A function that cannot reach one serves the last good copy it has and
+marks the whole payload stale; with nothing cached it returns 502 and the page
+prints a plain message.
 
 ## Four traps in ESPN's API, each already paid for once
 
@@ -81,6 +95,23 @@ not by reading about it. They are the reason this repo has tests.
    all season. A real zero is indistinguishable from missing data on a page, so
    points conceded is read off the season record instead, and yards allowed is
    not shown at all rather than shown as nothing.
+
+5. **The rank field that looked fine and wasn't.** ESPN's per-team and
+   per-athlete `statistics` endpoints hand back a `rank` alongside every
+   value — and it turned out not to be trustworthy, not just occasionally
+   stale. Two teams tied on the same season touchdown total came back with
+   two different ranks (`9th` and `1st`) in the same response. A quarterback
+   with *fewer* yards per game was tagged `#1 in NFL` ahead of one with more.
+   A player's own "yards per game" field did not equal his own correct season
+   total divided by his own correct games played — three different numbers
+   for the same thing, in the same payload. None of this was staleness (the
+   totals and games-played counts underneath were correct); the derived
+   per-game and rank fields were simply computed wrong, or on a different
+   cycle than the values they sit next to. This is why most of "the numbers"
+   and the quarterback table now read from nflverse instead: every value and
+   every rank is computed here, once, from the same rows, rather than trusted
+   from a field handed back pre-computed. See `netlify/functions/_lib/nflverse.mjs`
+   and `_lib/rank.mjs`.
 
 Two smaller ones: the team endpoint needs a **lowercase** slug (`/teams/gb`,
 not `/teams/GB`), and `passingYards` is gross while `netPassingYards` is after
@@ -209,8 +240,10 @@ once, on another site. The repo is the source of truth.
   and not yet attached. This is the only thing standing between the site and
   its real address — see `HANDOVER.md` for the steps and what to verify.
 - **More statistics.** Adding one is a line in the right category in
-  `netlify/functions/_lib/metrics.mjs` — a label, the ESPN category and stat
-  name, and which direction is better. Nothing else needs touching; the API and
+  `netlify/functions/_lib/metrics.mjs` — a label, which direction is better,
+  and either an `nf` field name (if nflverse's team/player CSVs carry it — see
+  the column lists in `_lib/nflverse.mjs`) or an ESPN category/stat pair as
+  the fallback (value only, no rank). Nothing else needs touching; the API and
   the page both build themselves from that list.
 - **More than three clubs.** Adding one is an entry in `TEAMS` in
   `netlify/functions/_lib/espn.mjs` — id, abbreviation, lowercase slug, every

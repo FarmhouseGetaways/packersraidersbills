@@ -513,9 +513,9 @@ function drawTeams(teams) {
         <span class="record-label">record</span>
       </div>
       <div class="team-grid">
-        ${kv('Points scored / game', num(r.pointsForPerGame, 1), pfRank[t.key])}
-        ${kv('Points allowed / game', num(r.pointsAgainstPerGame, 1), paRank[t.key])}
-        ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, diffRank[t.key])}
+        ${kv('Points scored / game', num(r.pointsForPerGame, 1), pfRank[t.key], nflRankNote(t.nflRank?.pf))}
+        ${kv('Points allowed / game', num(r.pointsAgainstPerGame, 1), paRank[t.key], nflRankNote(t.nflRank?.pa))}
+        ${kv('Point differential', r.differential == null ? '—' : (r.differential > 0 ? '+' : '') + r.differential, diffRank[t.key], nflRankNote(t.nflRank?.diff))}
         ${kv('Games played', gamesPlayedOf(t))}
       </div>
       ${t.nextEvent ? `<p class="team-next">Next: <b>${esc(t.nextEvent.name || '')}</b> ${esc(shortDate(t.nextEvent.date))}</p>` : ''}
@@ -524,7 +524,12 @@ function drawTeams(teams) {
   }
 }
 
-const kv = (k, v, rank) => `<div class="kv${rank ? ' has-rank' : ''}"><span class="k">${esc(k)}</span>${amongTag(rank)}<span class="v">${esc(v)}</span></div>`;
+const kv = (k, v, rank, sub) => `<div class="kv${rank ? ' has-rank' : ''}"><span class="k">${esc(k)}</span>${amongTag(rank)}<span class="v">${esc(v)}</span>${sub ? `<span class="v-sub">${esc(sub)}</span>` : ''}</div>`;
+
+/** "6th in NFL" — small print under a number, from the league-wide rank
+ *  stats.mjs works out across all 32 teams (the upper-right #badge is only
+ *  ever among these three clubs, which is a different, smaller comparison). */
+const nflRankNote = (rank) => (rank ? `${ordinal(rank)} in NFL` : null);
 
 function num(v, dp = 0) {
   return Number.isFinite(v) ? v.toFixed(dp) : '—';

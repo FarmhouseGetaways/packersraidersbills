@@ -375,6 +375,7 @@ h1, h2, h3 { margin: 0; font-family: var(--display); line-height: 1; }
 .kv.has-rank .k { padding-right: 1.8rem; }
 .kv .k { display: block; color: var(--ink-3); font-size: .62rem; text-transform: uppercase; letter-spacing: .1em; }
 .kv .v { font-family: var(--display); font-weight: 600; font-size: 1.3rem; line-height: 1.1; }
+.kv .v-sub { display: block; color: var(--ink-3); font-size: .62rem; text-transform: uppercase; letter-spacing: .06em; margin-top: .1rem; }
 
 .team-next {
   margin: .85rem 0 0; padding-top: .65rem; border-top: 1px solid var(--line);

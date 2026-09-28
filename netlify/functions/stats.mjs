@@ -9,6 +9,8 @@ import {
   TEAMS, CORE, SITE, getJson, indexCategories, pick, readRecord, allSettledValues,
 } from './_lib/espn.mjs';
 import { CATEGORIES, QB, leaders, clock } from './_lib/metrics.mjs';
+import { loadNflverseTeams, loadNflverseQbs } from './_lib/nflverse.mjs';
+import { competitionRank } from './_lib/rank.mjs';
 
 const TTL_MS = 120_000; // two minutes — live enough for a scoreboard, kind to ESPN
 let cache = { at: 0, payload: null };
@@ -56,12 +58,35 @@ async function build() {
   const scoreboard = await getJson(`${SITE}/scoreboard`).catch(() => null);
   const season = readSeason(scoreboard);
 
-  const [teams, divisions, injuries] = await Promise.all([
+  const [teams, standingsRoot, injuries, nflverseTeams, nflverseQbs] = await Promise.all([
     Promise.all(TEAMS.map((t) => buildTeam(t, season.year))),
-    buildDivisions(),
+    getJson(STANDINGS_URL).catch(() => null),
     buildInjuries(),
+    loadNflverseTeams(season.year).catch(() => []),
+    loadNflverseQbs(season.year).catch(() => ({ qualified: [], leaderByTeam: new Map() })),
   ]);
+  const divisions = buildDivisions(standingsRoot);
+  const nflRanks = buildLeagueRanks(standingsRoot);
+  for (const t of teams) t.nflRank = nflRanks[t.abbr] ?? null;
   const slate = weekGames(scoreboard);
+
+  // Every rank shown in "The numbers" and the quarterback table comes from
+  // here — computed once, across all 32 teams (or every qualifying passer),
+  // from the same nflverse rows the values themselves are read from. Never
+  // from a rank field either ESPN endpoint hands back: see the note at the
+  // top of metrics.mjs for why that turned out not to be safe.
+  const teamRanks = rankAllMetrics(CATEGORIES.flatMap((c) => c.metrics), nflverseTeams, (r) => r.abbr);
+  const qbRanks = rankAllMetrics(QB, nflverseQbs.qualified, (r) => r.id);
+
+  const nflverseByAbbr = new Map(nflverseTeams.map((r) => [r.abbr, r]));
+  for (const t of teams) {
+    const nfRow = nflverseByAbbr.get(t.abbr);
+    // The header on every comparison table ("3 games") and the fallback for
+    // the team card's own games-played tile: nflverse's own row count is a
+    // real count of that team's completed games, not a cached counter.
+    t.gamesPlayed = nfRow?.games ?? t.gamesPlayed;
+    t.qb = buildQb(nflverseQbs.leaderByTeam.get(t.abbr));
+  }
 
   return {
     generated: new Date().toISOString(),
@@ -76,11 +101,36 @@ async function build() {
     comparison: {
       categories: CATEGORIES.map((c) => ({
         key: c.key, title: c.title, note: c.note ?? null, open: !!c.open,
-        rows: compare(c.metrics, teams),
+        rows: compare(c.metrics, teams, {
+          nfRow: (t) => nflverseByAbbr.get(t.abbr),
+          nfRanks: teamRanks,
+          nfRankKeyOf: (t) => t.abbr,
+        }),
       })),
-      qb: compare(QB, teams, (t) => t.qb?.indexed),
+      qb: compare(QB, teams, {
+        source: (t) => t.qb?.indexed,
+        nfRow: (t) => t.qb?.nfStats,
+        nfRanks: qbRanks,
+        nfRankKeyOf: (t) => t.qb?.id,
+      }),
     },
   };
+}
+
+/**
+ * For every metric that names an `nf` field, rank every row (team or QB) on
+ * that field, across the FULL set passed in — all 32 teams, or every
+ * qualifying passer — never just the three this page shows. Two metrics
+ * that read the same field (e.g. a team's own passer-rating row and the QB
+ * table's) share the same rank computation rather than each redoing it.
+ */
+function rankAllMetrics(metrics, rows, keyOf) {
+  const out = {};
+  for (const m of metrics) {
+    if (!m.nf || out[m.nf]) continue;
+    out[m.nf] = competitionRank(rows, (r) => r[m.nf], m.better === 'low', keyOf);
+  }
+  return out;
 }
 
 function readSeason(scoreboard) {
@@ -95,10 +145,9 @@ function readSeason(scoreboard) {
 
 async function buildTeam(team, year) {
   const base = `${CORE}/seasons/${year}/types/2/teams/${team.id}`;
-  const [info, stats, lead] = await allSettledValues([
+  const [info, stats] = await allSettledValues([
     getJson(`${SITE}/teams/${team.slug}`),
     getJson(`${base}/statistics`),
-    getJson(`${base}/leaders`),
   ]);
 
   const t = info?.team ?? {};
@@ -117,13 +166,14 @@ async function buildTeam(team, year) {
     nickname: t.nickname ?? null,
     logo: pickLogo(t.logos),
     record,
-    // Surfaced on its own because the comparison tables need it: a season
-    // total means nothing without the number of games behind it.
+    // Overwritten with nflverse's own count once build() has that data —
+    // this ESPN value is only ever the fallback for when that fetch fails.
     gamesPlayed: indexed?.general?.gamesPlayed?.value ?? null,
     standing: t.standingSummary ?? null,
     nextEvent: readNextEvent(t.nextEvent),
     indexed,
-    qb: await buildQb(lead, year),
+    // Set in build(), once the nflverse passing data is in: buildQb(t, nfQb).
+    qb: null,
   };
 }
 
@@ -145,37 +195,40 @@ function readNextEvent(nextEvent) {
   };
 }
 
-/** The passing leader is the starting quarterback in all but pathological cases. */
-async function buildQb(lead, year) {
-  const cats = lead?.categories || [];
-  const passing = cats.find((c) => c.name === 'passingLeader') || cats.find((c) => c.name === 'passingYards');
-  const ref = passing?.leaders?.[0]?.athlete?.$ref;
-  if (!ref) return null;
-
-  const id = String(ref).match(/athletes\/(\d+)/)?.[1];
-  if (!id) return null;
-
-  const [profile, stats] = await allSettledValues([
-    getJson(cleanRef(ref)),
-    getJson(`${CORE}/seasons/${year}/types/2/athletes/${id}/statistics`),
-  ]);
-  if (!profile) return null;
-
+/**
+ * Each club's leading passer, read from nflverse rather than ESPN's athlete
+ * endpoints — one fewer thing pointed at ESPN, and it already has everything
+ * this needs: name, headshot, and every number the QB table compares.
+ * `nfStats` is kept on the object (not flattened) so compare() can read it
+ * by the same `nf` field names the team rows use.
+ */
+function buildQb(q) {
+  if (!q) return null;
+  const rating = Number.isFinite(q.passerRating) ? q.passerRating.toFixed(1) : null;
   return {
-    id,
-    name: profile.fullName ?? profile.displayName ?? null,
-    jersey: profile.jersey ?? null,
-    position: profile.position?.abbreviation ?? null,
-    headshot: profile.headshot?.href ?? null,
-    line: passing?.leaders?.[0]?.displayValue ?? null,
-    indexed: indexCategories(stats?.splits?.categories),
+    id: q.id,
+    name: q.name,
+    jersey: null, // not in nflverse's player file; the position/name are enough to identify the card
+    position: 'QB',
+    headshot: q.headshot,
+    line: qbLine(q),
+    nfStats: q,
+    // A small compatibility shape so the QB card's rating badge
+    // (drawQbs in app.js) can keep reading indexed.passing.QBRating.display
+    // exactly as it always has — the number underneath is now our own. This
+    // is also the only reason "Longest pass" in the QB comparison table is
+    // blank now rather than merely rank-less: it lived on the per-athlete
+    // ESPN endpoint this function used to call, and nflverse's summary file
+    // does not carry single-play stats (see the note in nflverse.mjs).
+    indexed: { passing: { QBRating: { value: q.passerRating, display: rating, rank: null } } },
   };
 }
 
-// The $ref values come back as http:// with query params; https is required
-// from a Netlify function and the params are noise.
-function cleanRef(ref) {
-  return String(ref).replace(/^http:/, 'https:').split('?')[0];
+function qbLine(q) {
+  if (!Number.isFinite(q.attempts) || !q.attempts) return null;
+  const parts = [`${q.completions}/${q.attempts}`, `${q.passYds} YDS`, `${q.passTd} TD`];
+  if (q.ints) parts.push(`${q.ints} INT`);
+  return parts.join(', ');
 }
 
 /**
@@ -222,8 +275,7 @@ function weekGames(scoreboard) {
  * about three teams, not a league standings site that happens to open on
  * three teams.
  */
-async function buildDivisions() {
-  const root = await getJson(STANDINGS_URL).catch(() => null);
+function buildDivisions(root) {
   const groups = root?.children?.flatMap((conf) => conf.children || []) || [];
   const ourAbbrs = new Set(TEAMS.flatMap((t) => t.abbrs || [t.abbr]));
 
@@ -265,6 +317,57 @@ function divStat(entry, name, display = false) {
 }
 
 /**
+ * Where each of our three clubs stands among all 32 teams — not just the
+ * three on this page — on points scored, points allowed and point
+ * differential. The small print under each number on the team card.
+ *
+ * The standings feed gives season TOTALS for points, not the per-game
+ * average the card shows, and two teams can easily have played a different
+ * number of games at any point in the season — so scored/allowed are
+ * divided down to a per-game figure before ranking. Differential is ranked
+ * as the league already reports it: a season total, not per-game.
+ */
+function buildLeagueRanks(root) {
+  const entries = (root?.children || [])
+    .flatMap((conf) => conf.children || [])
+    .flatMap((div) => div.standings?.entries || []);
+
+  const rows = entries.map((e) => {
+    const games = (divStat(e, 'wins') ?? 0) + (divStat(e, 'losses') ?? 0) + (divStat(e, 'ties') ?? 0);
+    const pf = divStat(e, 'pointsFor');
+    const pa = divStat(e, 'pointsAgainst');
+    return {
+      abbr: e.team?.abbreviation ?? null,
+      pf: games && pf != null ? pf / games : null,
+      pa: games && pa != null ? pa / games : null,
+      diff: divStat(e, 'differential'),
+    };
+  }).filter((r) => r.abbr);
+
+  const rankBy = (valueOf, lowerIsBetter) => {
+    const dir = lowerIsBetter ? 1 : -1;
+    const sorted = rows
+      .filter((r) => Number.isFinite(valueOf(r)))
+      .sort((a, b) => dir * (valueOf(a) - valueOf(b)));
+    const out = {};
+    let rank = 0;
+    sorted.forEach((r, i) => {
+      if (i === 0 || valueOf(r) !== valueOf(sorted[i - 1])) rank = i + 1;
+      out[r.abbr] = rank;
+    });
+    return out;
+  };
+
+  const pfRank = rankBy((r) => r.pf, false);
+  const paRank = rankBy((r) => r.pa, true);
+  const diffRank = rankBy((r) => r.diff, false);
+
+  const out = {};
+  for (const r of rows) out[r.abbr] = { pf: pfRank[r.abbr] ?? null, pa: paRank[r.abbr] ?? null, diff: diffRank[r.abbr] ?? null };
+  return out;
+}
+
+/**
  * The current injury report for each club, from the same roster call ESPN's
  * own site reads it from — not the "injuries" core-API feed, which turns out
  * to be a general player-news log (most of it about players who are fully
@@ -296,9 +399,28 @@ async function buildInjuries() {
 
 /**
  * Build one comparison row per metric: each team's value, and who leads.
- * `source` lets the QB rows read the quarterback's own stats with the same code.
+ *
+ * Three sources, in priority order:
+ *   1. `m.from === 'record'` — straight off the season record (wins, points).
+ *      Ranked from `nfRanks`/`nflRankKey` when the metric names one — the
+ *      standings-derived league ranks computed in build().
+ *   2. `m.nf` — a field on the nflverse season row (`nfRow(t)`), ranked
+ *      against every row in `nfRanks[m.nf]` (all 32 teams, or every
+ *      qualifying QB — never just the three this page shows).
+ *   3. Neither — ESPN's own indexed stat. The value is kept (nothing better
+ *      exists for these — third-down %, time of possession, longest play,
+ *      and the rest nflverse's summary file doesn't carry), but the rank is
+ *      always null: ESPN's own per-stat rank field is what sent us looking
+ *      for a second source in the first place, and is never shown again.
  */
-function compare(metrics, teams, source = (t) => t.indexed) {
+function compare(metrics, teams, opts = {}) {
+  const {
+    source = (t) => t.indexed,
+    nfRow = () => null,
+    nfRanks = {},
+    nfRankKeyOf = (t) => t.abbr,
+  } = opts;
+
   return metrics.map((m) => {
     const values = {};
     const displays = {};
@@ -308,7 +430,15 @@ function compare(metrics, teams, source = (t) => t.indexed) {
         const v = t.record?.[m.field];
         values[t.key] = Number.isFinite(v) ? v : null;
         displays[t.key] = Number.isFinite(v) ? v.toFixed(m.dp ?? 0) : null;
-        ranks[t.key] = null;
+        ranks[t.key] = m.nflRankKey ? (t.nflRank?.[m.nflRankKey] ?? null) : null;
+        continue;
+      }
+      if (m.nf) {
+        const row = nfRow(t);
+        const v = row ? row[m.nf] : null;
+        values[t.key] = Number.isFinite(v) ? v : null;
+        displays[t.key] = formatNf(v, m);
+        ranks[t.key] = nfRanks[m.nf]?.get(nfRankKeyOf(t)) ?? null;
         continue;
       }
       const s = pick(source(t), m.cat, m.stat);
@@ -316,7 +446,7 @@ function compare(metrics, teams, source = (t) => t.indexed) {
       // Time of possession arrives as a raw second count; "3448" is not a
       // time of possession anybody reads.
       displays[t.key] = m.format === 'clock' ? clock(s.value) : s.display;
-      ranks[t.key] = s.rank;
+      ranks[t.key] = null;
     }
     return {
       key: m.key, label: m.label, better: m.better, suffix: m.suffix ?? '',
@@ -325,4 +455,13 @@ function compare(metrics, teams, source = (t) => t.indexed) {
       leaders: leaders(values, m.better),
     };
   });
+}
+
+/** nflverse hands back raw numbers, not ESPN's pre-formatted display
+ *  strings — a season total reads as a whole number, a rate or percentage to
+ *  one decimal place, matching what this page already showed for the same
+ *  kind of figure. */
+function formatNf(v, m) {
+  if (!Number.isFinite(v)) return null;
+  return v.toFixed(m.dp ?? (m.count ? 0 : 1));
 }
